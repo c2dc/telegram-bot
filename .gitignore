@@ -1,5 +1,9 @@
-.env
-*.session
-*.vscode
-__pycache__
+# Don't add unnecessary folders
+.vscode
+.venv
 .mypy_cache
+__pycache__
+
+# Don't add sensitive files
+*.session
+config.yaml

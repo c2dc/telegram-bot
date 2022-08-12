@@ -11,9 +11,9 @@ cryptg = "^0.2.post4"
 Pillow = "^9.0.1"
 aiohttp = "^3.8.1"
 hachoir = "^3.1.2"
+PyYAML = "^6.0"
 
 [tool.poetry.dev-dependencies]
-python-dotenv = "^0.20.0"
 mypy = "^0.961"
 flake8 = "^4.0.1"
 black = {version = "^22.3.0", allow-prereleases = true}
