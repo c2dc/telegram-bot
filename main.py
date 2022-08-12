@@ -14,10 +14,9 @@ def ingest_channel(channel_name: str, channel_id: int, stop_point: int = None):
 
 async def main():
     channels = await client.get_channels()
-    logger.info(f"There's a total of {len(channels)} channels to verify")
 
     for channel in channels:
-        logger.info(f"Checking for new messages from channel {channel.title}...")
+        logger.info(f"Getting messages from channel {channel.title}")
         channel_data = await client.get_channel_info(channel)
 
         channel_id = channel.id
