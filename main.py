@@ -1,20 +1,19 @@
 import asyncio
 
-from telegram.models import Message
+from telegram.models import Message, Channel
 from telegram.common import logger
 from telegram.database import PgDatabase
 from telegram.client import AsyncTelegramClient
+
 from telethon.tl import types
 
 db = PgDatabase()
 client = AsyncTelegramClient()
 
 
-async def ingest_channel(channel: types.Channel, stop_point: int = None):
+async def ingest_channel(channel: types.Channel, max_message_id: int = None):
     BATCH_SIZE = 250
     current_message_id = None
-    min_message_id = None
-    max_message_id = None
 
     condition = False
     while condition:
@@ -25,10 +24,6 @@ async def ingest_channel(channel: types.Channel, stop_point: int = None):
         )
 
         if messages:
-            min_id = min([message.id for message in messages])
-            if min_message_id is None or min_message_id > min_id:
-                min_message_id = min_id
-
             max_id = max([message.id for message in messages])
             if max_message_id is None or max_message_id < max_id:
                 max_message_id = max_id
@@ -49,20 +44,27 @@ async def ingest_channel(channel: types.Channel, stop_point: int = None):
 
 
 async def main():
+    # Get channels from chat history
     channels = await client.get_channels()
     for channel in channels:
         logger.info(f"Getting messages from channel {channel.title}")
 
+        # Check if the channel is in the DB
         channel_info = db.get_channel_by_id(channel.id)
-        print(channel_info)
 
         # If the channel is not in the DB, get the entire history for the channel
         if channel_info is None:
-            db.upsert_channel_data(channel_id=channel.id, data=channel.to_dict())
+            db.upsert_channel(
+                channel=Channel(
+                    channel_id=channel.id,
+                    name=channel.name,
+                )
+            )
             await ingest_channel(channel)
         else:
-            await ingest_channel(channel, channel_info[5])
+            await ingest_channel(channel, max_message_id=channel_info.max_message_id)
 
+    # Get groups from chat history
     groups = await client.get_groups()
     for group in groups:
         logger.info(f"Getting messages from group {group.title}")

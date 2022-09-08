@@ -48,7 +48,13 @@ class PgDatabase(Database):
         pass
 
     def upsert_channel(self, channel) -> None:
-        pass
+        self.session.add(channel)
+
+        try:
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
     def upsert_channel_data(self, channel_id, data) -> None:
         pass
