@@ -1,21 +1,49 @@
 from .common import logger, config
 
+from typing import Any
+from abc import ABC, abstractmethod
 
-class Database:
+
+class Database(ABC):
     def __init__(self):
         pass
 
-    def _get_conn(self):
+    @abstractmethod
+    def _get_conn(self) -> Any:
         pass
 
-    def insert_messages(self, messages: list):
+    @abstractmethod
+    def insert_messages(self, messages: list) -> None:
         pass
 
-    def upsert_channel(self, channel):
+    @abstractmethod
+    def upsert_channel(self, channel) -> None:
         pass
 
-    def upsert_channel_data(self, channel_id, data):
+    @abstractmethod
+    def upsert_channel_data(self, channel_id, data) -> None:
         pass
 
-    def get_channel_by_id(self, channel_id):
+    @abstractmethod
+    def get_channel_by_id(self, channel_id) -> Any:
+        pass
+
+
+class PgDatabase(Database):
+    def __init__(self):
+        pass
+
+    def _get_conn(self) -> Any:
+        pass
+
+    def insert_messages(self, messages: list) -> None:
+        pass
+
+    def upsert_channel(self, channel) -> None:
+        pass
+
+    def upsert_channel_data(self, channel_id, data) -> None:
+        pass
+
+    def get_channel_by_id(self, channel_id) -> Any:
         pass
