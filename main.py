@@ -1,6 +1,6 @@
 import asyncio
 
-from telegram.models import Channel, Message
+from telegram.models import Message
 from telegram.common import logger
 from telegram.database import PgDatabase
 from telegram.client import AsyncTelegramClient
@@ -54,8 +54,9 @@ async def main():
         logger.info(f"Getting messages from channel {channel.title}")
 
         channel_info = db.get_channel_by_id(channel.id)
+        print(channel_info)
 
-        # If the channel is not in the DB, let's get the entire history for the channel
+        # If the channel is not in the DB, get the entire history for the channel
         if channel_info is None:
             db.upsert_channel_data(channel_id=channel.id, data=channel.to_dict())
             await ingest_channel(channel)

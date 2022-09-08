@@ -1,5 +1,4 @@
 import time
-import json
 
 from sqlalchemy import (
     Column,
