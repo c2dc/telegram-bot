@@ -1,68 +1,86 @@
 import asyncio
+from telethon.tl import types
 
 from telegram.models import Message, Channel
 from telegram.common import logger
 from telegram.database import PgDatabase
 from telegram.client import AsyncTelegramClient
 
-from telethon.tl import types
+BATCH_SIZE = 500
 
 db = PgDatabase()
 client = AsyncTelegramClient()
 
 
 async def ingest_channel(channel: types.Channel, max_message_id: int = None):
-    BATCH_SIZE = 250
-    current_message_id = None
+    logger.info(f"Checking for new messages from channel {channel.name}...")
 
-    condition = False
-    while condition:
-        records = []
+    count = 0
+    try:
+        while True:
+            # Get messages from channel with ID higher than previous max_message_id
+            messages = await client.fetch_messages(
+                channel=channel, limit=BATCH_SIZE, min_id=max_message_id
+            )
 
-        messages = await client.fetch_messages(
-            channel=channel, limit=BATCH_SIZE, max_id=current_message_id
-        )
+            # Stop if there are no new messages
+            count += len(messages)
+            if messages is None or len(messages) == 0:
+                logger.info(
+                    f"Downloaded {count} new messages from channel {channel.name}"
+                )
+                break
 
-        if messages:
+            # Insert messages into the database
+            records = [
+                Message(
+                    message_id=message.id,
+                    channel_id=channel.id,
+                    data=message.to_json(),
+                )
+                for message in messages
+            ]
+            db.insert_messages(records)
+
+            # Update max_message_id
             max_id = max([message.id for message in messages])
             if max_message_id is None or max_message_id < max_id:
                 max_message_id = max_id
 
-            for message in messages:
-                current_message_id = message.id
-
-                records.append(
-                    Message(
-                        message_id=message.id,
-                        channel_id=channel.id,
-                        data=message.to_json(),
-                    )
+            # Upsert channel with updated max_message_id
+            db.upsert_channel(
+                Channel(
+                    channel_id=channel.id,
+                    name=channel.name,
+                    max_message_id=max_message_id,
                 )
+            )
 
-        db.insert_messages(records)
-        condition = False
+            # Commit transaction
+            db.commit_changes()
+
+    except Exception as e:
+        logger.error(e)
+        raise e
 
 
 async def main():
     # Get channels from chat history
     channels = await client.get_channels()
     for channel in channels:
-        logger.info(f"Getting messages from channel {channel.title}")
-
-        # Check if the channel is in the DB
-        channel_info = db.get_channel_by_id(channel.id)
-
-        # If the channel is not in the DB, get the entire history for the channel
-        if channel_info is None:
+        # If the channel is not in the database, initialize it
+        if db.get_channel_by_id(channel.id) is None:
+            logger.info(f"Initializing channel {channel.name} in the database")
             db.upsert_channel(
                 channel=Channel(
                     channel_id=channel.id,
                     name=channel.name,
                 )
             )
-            await ingest_channel(channel)
-        else:
-            await ingest_channel(channel, max_message_id=channel_info.max_message_id)
+            db.commit_changes()
+
+        # Ingest new messages
+        await ingest_channel(channel, max_message_id=db.get_max_message_id(channel.id))
 
     # Get groups from chat history
     groups = await client.get_groups()

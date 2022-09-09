@@ -15,13 +15,18 @@ class AsyncTelegramClient:
             config["session"], config["api_id"], config["api_hash"]
         )
 
-    async def fetch_messages(self, channel, limit=100, max_id=None, min_id=None):
+    async def fetch_messages(
+        self, channel, limit=100, max_id=None, min_id=None, reverse=True
+    ):
         async with self._client as client:
             try:
                 params = [channel, limit]
-                kwargs = {
-                    arg: locals()[arg] for arg in [max_id, min_id] if arg is not None
-                }
+                kwargs = {}
+
+                for key in ["max_id", "min_id", "reverse"]:
+                    if locals()[key] is not None:
+                        kwargs[key] = locals()[key]
+
                 messages = await client.get_messages(*params, **kwargs)
             except ValueError as e:
                 logger.warning(str(e))
