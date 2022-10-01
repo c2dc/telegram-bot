@@ -1,5 +1,4 @@
 # Don't add unnecessary folders
-.vscode
 .venv
 .mypy_cache
 __pycache__

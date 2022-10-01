@@ -2,11 +2,10 @@ import json
 from typing import List
 
 from telethon import TelegramClient as AsyncTelegram
-from telethon.tl import functions
-from telethon.tl import types
 from telethon import errors
+from telethon.tl import functions, types
 
-from .common import logger, config
+from .common import config, logger
 
 
 class AsyncTelegramClient:
@@ -97,3 +96,59 @@ class AsyncTelegramClient:
                 raise e
 
         return me
+
+    async def join_private_channel(self, hash: str) -> None:
+        async with self._client as client:
+            try:
+                # Check if its valid
+                chat_invite = await client(
+                    functions.messages.CheckChatInviteRequest(hash=hash)
+                )
+
+                # Do not join groups/channels we are already members
+                if isinstance(chat_invite, types.ChatInviteAlready):
+                    chat = chat_invite.chat
+                    logger.info(
+                        f"Won't join channel {chat.title}, since we are already members"
+                    )
+                    return
+
+                # Do not join small groups/channels
+                participants = chat_invite.participants_count
+                if participants > 50:
+                    logger.info(
+                        f"Joining channel {chat_invite.title} with {participants} participants"
+                    )
+                    await client(functions.messages.ImportChatInviteRequest(hash))
+                else:
+                    logger.info(
+                        f"Won't join channel {chat_invite.title} with only {participants} participants"
+                    )
+            except errors.InviteHashExpiredError as e:
+                logger.warning(str(e))
+                pass
+            except errors.UserAlreadyParticipantError as e:
+                logger.warning(str(e))
+                pass
+            except Exception as e:
+                logger.warning(str(e))
+                raise e
+
+    async def join_public_channel(self, link: str) -> None:
+        async with self._client as client:
+            try:
+                entity = await client.get_entity(link)
+                if isinstance(entity, types.Channel):
+                    logger.info(
+                        f"Joining channel {entity.title} with {entity.participants_count} participants"
+                    )
+                    await client(functions.channels.JoinChannelRequest(entity))
+            except errors.ChannelPrivateError as e:
+                logger.warning(str(e))
+                pass
+            except errors.UsernameInvalidError as e:
+                logger.warning(str(e))
+                pass
+            except Exception as e:
+                logger.warning(str(e))
+                raise e

@@ -23,6 +23,9 @@ black = {version = "^22.3.0", allow-prereleases = true}
 [tool.poetry.group.dev.dependencies]
 alembic = "^1.8.1"
 sqlalchemy2-stubs = "^0.0.2a27"
+twarc = "^2.11.3"
+isort = "^5.10.1"
+twarc-csv = "^0.5.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

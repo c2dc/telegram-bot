@@ -1,0 +1,16 @@
+{
+    "python.formatting.provider": "black",
+    "python.linting.flake8Enabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.enabled": true,
+    "python.languageServer": "Pylance",
+    "python.sortImports.args": [
+        "--profile",
+        "black"
+    ],
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+        }
+    }
+}
