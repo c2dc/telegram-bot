@@ -1,10 +1,13 @@
 import asyncio
+
 from telethon.tl import types
 
-from telegram.models import Message, Channel
+from telegram.client import AsyncTelegramClient
 from telegram.common import logger
 from telegram.database import PgDatabase
-from telegram.client import AsyncTelegramClient
+from telegram.models import Channel, Message
+from telegram.search import search_telegram, search_twitter
+from telegram.utils import Selections, select, select_channels, select_groups
 
 BATCH_SIZE = 500
 
@@ -64,10 +67,14 @@ async def ingest_channel(channel: types.Channel, max_message_id: int = None):
         raise e
 
 
-async def main():
+async def download_channels() -> None:
     # Get channels from chat history
     channels = await client.get_channels()
-    for channel in channels:
+    selected_channels = select_channels(channels)
+
+    for channel in selected_channels:
+        logger.info(f"Getting messages from channel {channel.title}")
+
         # If the channel is not in the database, initialize it
         if db.get_channel_by_id(channel.id) is None:
             logger.info(f"Initializing channel {channel.name} in the database")
@@ -82,10 +89,26 @@ async def main():
         # Ingest new messages
         await ingest_channel(channel, max_message_id=db.get_max_message_id(channel.id))
 
+
+async def download_groups() -> None:
     # Get groups from chat history
     groups = await client.get_groups()
-    for group in groups:
+    selected_groups = select_groups(groups)
+
+    for group in selected_groups:
         logger.info(f"Getting messages from group {group.title}")
+
+
+async def main():
+    match select():
+        case Selections.SEARCH_TWITTER:
+            await search_twitter()
+        case Selections.SEARCH_TELEGRAM:
+            await search_telegram()
+        case Selections.DOWNLOAD_CHANNELS:
+            await download_channels()
+        case Selections.DOWNLOAD_GROUPS:
+            await download_groups()
 
 
 if __name__ == "__main__":

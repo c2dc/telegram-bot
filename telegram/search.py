@@ -1,12 +1,11 @@
-import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List
 
 from twarc.client2 import Twarc2
 
-from telegram.client import AsyncTelegramClient
-from telegram.common import config, logger
+from .client import AsyncTelegramClient
+from .common import config, logger
 
 tl_client = AsyncTelegramClient()
 tw_client = Twarc2(
@@ -101,10 +100,11 @@ def get_invite_links() -> List[str]:
     return list(urls)
 
 
-async def main():
+async def search_twitter():
     invite_links = get_invite_links()
     await join_invite_links(invite_links)
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+async def search_telegram():
+    print("Search telegram not implemented!")
+    pass
