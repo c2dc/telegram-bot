@@ -1,0 +1,11 @@
+session: tg
+# Telethon credentials
+api_id: xxxxxx
+api_hash: xxxxxx
+# Database credentials
+db_pass: postgres
+db_user: postgres
+db_name: postgres
+# Twarc2 credentials
+consumer_key: xxxxxx
+consumer_secret: xxxxxx

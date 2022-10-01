@@ -11,7 +11,7 @@ from .common import config, logger
 class AsyncTelegramClient:
     def __init__(self):
         self._client = AsyncTelegram(
-            config["session"], config["api_id"], config["api_hash"]
+            f'config/{config["session"]}', config["api_id"], config["api_hash"]
         )
 
     async def fetch_messages(
