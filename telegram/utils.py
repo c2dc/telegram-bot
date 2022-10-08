@@ -7,8 +7,7 @@ from telethon.tl import types
 class Selections(Enum):
     SEARCH_TWITTER = 1
     SEARCH_TELEGRAM = 2
-    DOWNLOAD_CHANNELS = 3
-    DOWNLOAD_GROUPS = 4
+    DOWNLOAD_MESSAGES = 3
 
 
 def delete_elements(list_object: List[Any], indices: List[int]) -> None:
@@ -21,8 +20,7 @@ def delete_elements(list_object: List[Any], indices: List[int]) -> None:
 def select() -> Selections:
     print("[1] Search twitter for channels/groups")
     print("[2] Search telegram for channels/groups")
-    print("[3] Download messages from joined channels")
-    print("[4] Download messages from joined groups")
+    print("[3] Download messages from joined channels/groups")
     selection = input('What would you like to do? (eg: "1", "2")\n')
 
     return Selections(int(selection))

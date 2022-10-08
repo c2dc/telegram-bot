@@ -1,12 +1,13 @@
-from typing import Any, Optional
 from abc import ABC, abstractmethod
-from sqlalchemy.orm import Session
+from typing import Any, Optional
+
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
 from .common import logger
-from .models import Channel
 from .connector import init_connection_engine
+from .models import Channel
 
 
 class Database(ABC):
@@ -30,6 +31,10 @@ class Database(ABC):
 
     @abstractmethod
     def get_channel_by_id(self, channel_id) -> Any:
+        pass
+
+    @abstractmethod
+    def get_max_message_id(self, channel_id) -> Optional[int]:
         pass
 
     @abstractmethod

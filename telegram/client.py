@@ -1,5 +1,6 @@
 import json
-from typing import List
+from abc import ABC, abstractmethod
+from typing import List, Optional
 
 from telethon import TelegramClient as AsyncTelegram
 from telethon import errors
@@ -8,18 +9,68 @@ from telethon.tl import functions, types
 from .common import config, logger
 
 
-class AsyncTelegramClient:
-    def __init__(self):
+class TelegramClient(ABC):
+    def __init__(self) -> None:
+        pass
+
+    @abstractmethod
+    async def fetch_messages(
+        self,
+        dialog: Optional[types.Dialog],
+        limit: int = 100,
+        max_id: Optional[int] = None,
+        min_id: Optional[int] = None,
+        reverse: bool = True,
+    ) -> List[types.Message]:
+        pass
+
+    @abstractmethod
+    async def get_media(self, message: types.Message, filename: str) -> None:
+        pass
+
+    @abstractmethod
+    async def get_channel_info(self, channel: types.Channel) -> types.messages.ChatFull:
+        pass
+
+    @abstractmethod
+    async def get_channel_users(
+        self, channel: types.Channel, limit: float = 1000
+    ) -> List[types.User]:
+        pass
+
+    @abstractmethod
+    async def get_channels(self, limit: float = 1000) -> List[types.Dialog]:
+        pass
+
+    @abstractmethod
+    async def get_groups(self, limit: float = 1000) -> List[types.Dialog]:
+        pass
+
+    @abstractmethod
+    async def get_me(self) -> types.User:
+        pass
+
+    @abstractmethod
+    async def join_private_channel(self, hash: str) -> None:
+        pass
+
+    @abstractmethod
+    async def join_public_channel(self, link: str) -> None:
+        pass
+
+
+class AsyncTelegramClient(TelegramClient):
+    def __init__(self) -> None:
         self._client = AsyncTelegram(
             f'config/{config["session"]}', config["api_id"], config["api_hash"]
         )
 
     async def fetch_messages(
-        self, channel, limit=100, max_id=None, min_id=None, reverse=True
+        self, dialog, limit=100, max_id=None, min_id=None, reverse=True
     ):
         async with self._client as client:
             try:
-                params = [channel, limit]
+                params = [dialog, limit]
                 kwargs = {}
 
                 for key in ["max_id", "min_id", "reverse"]:
@@ -33,7 +84,24 @@ class AsyncTelegramClient:
 
         return messages
 
-    async def get_channel_info(self, channel: types.Channel):
+    async def get_media(self, message: types.Message, filename: str) -> None:
+        def callback(current, total):
+            print(
+                f"Downloaded {current} out of {total} total bytes: {(current / total):.2%}"
+            )
+
+        async with self._client as client:
+            try:
+                print(f"Trying to create {filename}")
+                result = await client.download_media(
+                    message=message, file=filename, progress_callback=callback
+                )
+                print(result)
+            except Exception as e:
+                logger.warning(str(e))
+                raise e
+
+    async def get_channel_info(self, channel: types.Channel) -> types.messages.ChatFull:
         async with self._client as client:
             try:
                 data = await client(
@@ -130,9 +198,12 @@ class AsyncTelegramClient:
             except errors.UserAlreadyParticipantError as e:
                 logger.warning(str(e))
                 pass
+            except errors.UsernameNotOccupiedError as e:
+                logger.warning(str(e))
+                pass
             except Exception as e:
                 logger.warning(str(e))
-                raise e
+                pass
 
     async def join_public_channel(self, link: str) -> None:
         async with self._client as client:
@@ -149,6 +220,9 @@ class AsyncTelegramClient:
             except errors.UsernameInvalidError as e:
                 logger.warning(str(e))
                 pass
+            except errors.UsernameNotOccupiedError as e:
+                logger.warning(str(e))
+                pass
             except Exception as e:
                 logger.warning(str(e))
-                raise e
+                pass

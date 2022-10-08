@@ -6,3 +6,4 @@ __pycache__
 # Don't add sensitive files
 *.session
 *config.yaml
+invite_links.txt

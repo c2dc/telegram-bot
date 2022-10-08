@@ -10,6 +10,8 @@ logging.getLogger("telethon.network.mtprotosender").disabled = True
 
 logger = logging.getLogger("default")
 
+BATCH_SIZE = 500
+
 
 with open("config/config.yaml", "r") as stream:
     config = yaml.safe_load(stream)

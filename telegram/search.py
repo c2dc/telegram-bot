@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List
@@ -18,17 +19,32 @@ async def join_invite_links(invite_links: List[str]) -> None:
     private_pattern = (
         "(https?:\/\/)?(www[.])?(telegram|t)\.me\/(joinchat\/|\+)([a-zA-Z0-9_]+)$"
     )
+    instant_view_pattern = (
+        "(https?:\/\/)?(www[.])?(telegram|t)\.me\/iv\?rhash=([a-z0-9]+)&url=(.*)$"
+    )
+    embedded_pattern = (
+        "(https?:\/\/)?(www[.])?(telegram|t)\.me\/([a-zA-Z0-9_]+)\/([0-9]+)$"
+    )
 
     for link in invite_links:
         public_match = re.search(public_pattern, link)
         private_match = re.search(private_pattern, link)
+        embedded_match = re.search(embedded_pattern, link)
+        instant_view_match = re.search(instant_view_pattern, link)
+
         if public_match:
+            await tl_client.join_public_channel(link)
+        elif embedded_match:
+            link = "/".join(link.split("/")[:-1])
             await tl_client.join_public_channel(link)
         elif private_match:
             hash = private_match.group(5)
             await tl_client.join_private_channel(hash=hash)
+        elif instant_view_match:
+            pass
         else:
-            raise Exception(f"Uncaught link pattern: {link}")
+            logger.error(f"Uncaught link pattern: {link}")
+            pass
 
 
 def get_invite_links() -> List[str]:
@@ -61,16 +77,31 @@ def get_invite_links() -> List[str]:
         # Get all urls from results:
         for page in search_results:
             for tweet in page["data"]:
-                for url in tweet["entities"]["urls"]:
-                    url_to_add = url["expanded_url"]
-                    if pattern.match(url_to_add):
-                        urls.add(url_to_add)
+                if tweet["entities"] is not None:
+                    for url in tweet["entities"]["urls"]:
+                        url_to_add = url["expanded_url"]
+                        if pattern.match(url_to_add):
+                            urls.add(url_to_add)
 
     return list(urls)
 
 
 async def search_twitter():
-    invite_links = get_invite_links()
+    filename = os.path.join("config", "invite_links.txt")
+
+    # Search twitter if no query results are available
+    if not os.path.exists(filename):
+        invite_links = get_invite_links()
+        with open(filename, "w") as f:
+            for invite_link in invite_links:
+                f.write(f"{invite_link}\n")
+
+    # Load invite_links from already available query results
+    else:
+        with open(filename, "r") as f:
+            invite_links = f.readlines()
+            invite_links = [link.strip() for link in invite_links]
+
     await join_invite_links(invite_links)
 
 
