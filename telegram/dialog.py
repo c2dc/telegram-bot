@@ -31,11 +31,11 @@ async def ingest_dialog(
         # Insert messages into the database
         records = [
             Message(
-                message_id=message.id,
+                message=message,
                 channel_id=dialog.id,
-                data=message.to_json(),
             )
             for message in messages
+            if isinstance(message, types.Message)
         ]
         db.insert_messages(records)
 

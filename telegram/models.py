@@ -1,16 +1,19 @@
+from typing import Optional
+
 from sqlalchemy import (
+    TIMESTAMP,
+    BigInteger,
+    Boolean,
     Column,
+    ForeignKey,
     Integer,
     Text,
-    Boolean,
-    BigInteger,
-    ForeignKey,
     UniqueConstraint,
-    TIMESTAMP,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
+from telethon import types
 
 Base = declarative_base()
 
@@ -39,7 +42,7 @@ class Channel(Base):
         is_active: bool = True,
         is_complete: bool = False,
     ):
-        self.channel_id = channel_id
+        self.channel_id = int(channel_id)
         self.name = name
         self.max_message_id = max_message_id
 
@@ -54,7 +57,18 @@ class Message(Base):
     message_id = Column(BigInteger, nullable=False)
     channel_id = Column(BigInteger, ForeignKey(Channel.channel_id), nullable=False)
     data = Column(JSONB, nullable=False)
+    message = Column(Text, nullable=True)
+    views = Column(BigInteger, nullable=True)
+    forwards = Column(BigInteger, nullable=True)
 
+    from_id = Column(BigInteger, nullable=True)
+    post_author = Column(Text, nullable=True)
+
+    fwd_from_id = Column(BigInteger, nullable=True)
+    fwd_from_name = Column(Text, nullable=True)
+    fwd_post_author = Column(Text, nullable=True)
+
+    message_utc = Column(TIMESTAMP, nullable=True)
     retrieved_utc = Column(TIMESTAMP, nullable=False, server_default=func.now())
     updated_utc = Column(
         TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
@@ -66,7 +80,45 @@ class Message(Base):
         ),
     )
 
-    def __init__(self, message_id: int, channel_id: int, data):
-        self.message_id = message_id
-        self.channel_id = channel_id
-        self.data = data
+    def __init__(
+        self,
+        message: types.Message,
+        channel_id: int,
+    ):
+        self.message_id = message.id
+        self.channel_id = int(channel_id)
+        self.data = message.to_json()
+        self.message = message.message
+        self.views = message.views
+        self.forwards = message.forwards
+
+        self.from_id = self._match_peer_id(message.from_id)
+        self.post_author = message.post_author
+
+        if message.fwd_from:
+            self.fwd_from_id = self._match_peer_id(message.fwd_from.from_id)
+            self.fwd_from_name = message.fwd_from.from_name
+            self.fwd_post_author = message.fwd_from.post_author
+
+        if message.entities:
+            for entity in message.entities:
+                match entity:
+                    case types.MessageEntityUrl:
+                        pass
+                    case types.MessageEntityTextUrl:
+                        pass
+                    case _:
+                        pass
+
+        self.message_utc = message.date
+
+    def _match_peer_id(self, peer_id) -> Optional[int]:
+        match peer_id:
+            case types.PeerChannel():
+                return peer_id.channel_id
+            case types.PeerUser():
+                return peer_id.user_id
+            case types.PeerChat():
+                return peer_id.chat_id
+            case _:
+                return None
