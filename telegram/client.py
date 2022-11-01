@@ -9,6 +9,38 @@ from telethon.tl import functions, types
 from .common import config, logger
 
 
+def _handle_chat(chat: types.Chat, min_participants: int = 50) -> Optional[types.Chat]:
+    # Do not consider unuseful options
+    if (
+        isinstance(chat, types.ChannelForbidden)
+        or isinstance(chat, types.ChatForbidden)
+        or isinstance(chat, types.ChatEmpty)
+    ):
+        return None
+
+    elif isinstance(chat, types.Channel):
+        # Do not join small channels
+        if (
+            chat.participants_count is not None
+            and chat.participants_count < min_participants
+        ):
+            return None
+
+        # Do not join if there's need for human approval
+        if hasattr(chat, "join_request") and chat.join_request:
+            return None
+
+    elif isinstance(chat, types.Chat):
+        # Do not join small chats
+        if (
+            chat.participants_count is not None
+            and chat.participants_count < min_participants
+        ):
+            return None
+
+    return chat
+
+
 class TelegramClient(ABC):
     def __init__(self) -> None:
         pass
@@ -228,7 +260,7 @@ class AsyncTelegramClient(TelegramClient):
                 pass
 
     async def get_chat_invite(
-        self, link: str, min_participants: int = 50
+        self, hash: str, min_participants: int = 50
     ) -> Optional[types.ChatInvite]:
         async with self._client as client:
             try:
@@ -245,17 +277,65 @@ class AsyncTelegramClient(TelegramClient):
                     )
                     return None
 
-                # Do not join small groups/channels
-                participants = chat_invite.participants_count
-                if participants < min_participants:
-                    logger.info(
-                        f"Won't join channel {chat_invite.title} with only {participants} participants"
-                    )
-                    return None
+                if isinstance(chat_invite, types.ChatInvite):
+                    # Do not join small groups/channels
+                    if (
+                        chat_invite.participants_count is not None
+                        and chat_invite.participants_count < min_participants
+                    ):
+                        return None
+
+                    # Do not join if there's need for admin aproval
+                    if (
+                        hasattr(chat_invite, "request_needed")
+                        and chat_invite.request_needed
+                    ):
+                        return None
+
+                if isinstance(chat_invite, types.ChatInvitePeek):
+                    chat = chat_invite.chat
+                    if _handle_chat(chat, min_participants) is None:
+                        return None
 
                 return chat_invite
 
+            except errors.ChannelPrivateError as e:
+                return None
+            except errors.UsernameInvalidError as e:
+                return None
+            except errors.UsernameNotOccupiedError as e:
+                return None
             except errors.InviteHashExpiredError as e:
                 return None
             except errors.InviteHashInvalidError as e:
+                return None
+            except ValueError as e:
+                return None
+            except Exception as e:
+                logger.warning(str(e))
+                return None
+
+    async def get_entity(
+        self, link: str, min_participants: int = 50
+    ) -> Optional[types.Chat]:
+        async with self._client as client:
+            try:
+                entity = await client.get_entity(link)
+
+                # Do not consider users
+                if isinstance(entity, types.User):
+                    return None
+
+                return _handle_chat(entity, min_participants)
+
+            except errors.ChannelPrivateError as e:
+                return None
+            except errors.UsernameInvalidError as e:
+                return None
+            except errors.UsernameNotOccupiedError as e:
+                return None
+            except ValueError as e:
+                return None
+            except Exception as e:
+                logger.error(str(e))
                 return None

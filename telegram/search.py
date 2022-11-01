@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import List
 
+from tqdm import tqdm
 from twarc.client2 import Twarc2
 
 from .client import AsyncTelegramClient
@@ -88,45 +89,49 @@ def get_twitter_invite_links() -> List[str]:
     return list(urls)
 
 
-def get_telegram_invite_links(db: Database) -> List[str]:
+async def get_telegram_invite_links(db: Database) -> List[str]:
     urls = set()
 
-    # Pattern for telegram links
+    # Patterns for different telegram invite links
     base_pattern = re.compile(
         "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_\+]+)(\/\S*)?"
     )
-
-    # Patterns for different telegram link types
     public_pattern = re.compile(
         "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)$"
     )
     private_pattern = re.compile(
         "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)(joinchat\/|\+)([a-zA-Z0-9_]+)$"
     )
-    instant_view_pattern = re.compile(
-        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)iv\?rhash=([a-z0-9]+)&url=(.*)$"
-    )
-    embedded_pattern = re.compile(
-        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)\/([0-9]+)$"
-    )
 
-    # Iterates through messages
     messages = db.get_messages_with_pattern(pattern="%t.me%")
     for message in messages:
+        # Join group returns from re.findall
         urls_to_add = ["".join(url) for url in base_pattern.findall(message)]
+
+        # Remove https?:// substring from string
         urls_to_add = [re.sub("https?:\/\/", "", url) for url in urls_to_add]
 
         for url in urls_to_add:
-            public_match = public_pattern.search(url)
             private_match = private_pattern.search(url)
-            embedded_match = embedded_pattern.search(url)
-            instant_view_match = instant_view_pattern.search(url)
+            public_match = public_pattern.search(url)
 
-            if embedded_pattern.search(url):
-                url = "/".join(url.split("/")[:-1])
-            urls.add(url)
+            if private_match or public_match:
+                urls.add(url)
 
-    return list(urls)
+    final_urls = set()
+    for url in tqdm(urls):
+        private_match = private_pattern.search(url)
+        public_match = public_pattern.search(url)
+
+        if private_match:
+            hash = "/".join(url.split("/")[:-1])
+            chat_invite = await tl_client.get_chat_invite(hash)
+            final_urls.add(url)
+        elif public_match:
+            entity = await tl_client.get_entity(url)
+            final_urls.add(url)
+
+    return list(final_urls)
 
 
 async def search_twitter():
@@ -153,7 +158,7 @@ async def search_telegram(db: Database):
 
     # Search telegram database if no query results are available
     if not os.path.exists(filename):
-        invite_links = get_telegram_invite_links(db)
+        invite_links = await get_telegram_invite_links(db)
         with open(filename, "w") as f:
             for invite_link in invite_links:
                 f.write(f"{invite_link}\n")
