@@ -7,11 +7,9 @@ from twarc.client2 import Twarc2
 
 from .client import AsyncTelegramClient
 from .common import config, logger
+from .database import Database
 
 tl_client = AsyncTelegramClient()
-tw_client = Twarc2(
-    consumer_key=config["consumer_key"], consumer_secret=config["consumer_secret"]
-)
 
 
 async def join_invite_links(invite_links: List[str]) -> None:
@@ -47,7 +45,11 @@ async def join_invite_links(invite_links: List[str]) -> None:
             pass
 
 
-def get_invite_links() -> List[str]:
+def get_twitter_invite_links() -> List[str]:
+    tw_client = Twarc2(
+        consumer_key=config["consumer_key"], consumer_secret=config["consumer_secret"]
+    )
+
     urls = set()
 
     # Start and end times must be in UTC
@@ -86,12 +88,53 @@ def get_invite_links() -> List[str]:
     return list(urls)
 
 
+def get_telegram_invite_links(db: Database) -> List[str]:
+    urls = set()
+
+    # Pattern for telegram links
+    base_pattern = re.compile(
+        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_\+]+)(\/\S*)?"
+    )
+
+    # Patterns for different telegram link types
+    public_pattern = re.compile(
+        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)$"
+    )
+    private_pattern = re.compile(
+        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)(joinchat\/|\+)([a-zA-Z0-9_]+)$"
+    )
+    instant_view_pattern = re.compile(
+        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)iv\?rhash=([a-z0-9]+)&url=(.*)$"
+    )
+    embedded_pattern = re.compile(
+        "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)\/([0-9]+)$"
+    )
+
+    # Iterates through messages
+    messages = db.get_messages_with_pattern(pattern="%t.me%")
+    for message in messages:
+        urls_to_add = ["".join(url) for url in base_pattern.findall(message)]
+        urls_to_add = [re.sub("https?:\/\/", "", url) for url in urls_to_add]
+
+        for url in urls_to_add:
+            public_match = public_pattern.search(url)
+            private_match = private_pattern.search(url)
+            embedded_match = embedded_pattern.search(url)
+            instant_view_match = instant_view_pattern.search(url)
+
+            if embedded_pattern.search(url):
+                url = "/".join(url.split("/")[:-1])
+            urls.add(url)
+
+    return list(urls)
+
+
 async def search_twitter():
     filename = os.path.join("config", "invite_links.txt")
 
     # Search twitter if no query results are available
     if not os.path.exists(filename):
-        invite_links = get_invite_links()
+        invite_links = get_twitter_invite_links()
         with open(filename, "w") as f:
             for invite_link in invite_links:
                 f.write(f"{invite_link}\n")
@@ -105,6 +148,20 @@ async def search_twitter():
     await join_invite_links(invite_links)
 
 
-async def search_telegram():
-    print("Search telegram not implemented!")
-    pass
+async def search_telegram(db: Database):
+    filename = os.path.join("config", "telegram_invite_links.txt")
+
+    # Search telegram database if no query results are available
+    if not os.path.exists(filename):
+        invite_links = get_telegram_invite_links(db)
+        with open(filename, "w") as f:
+            for invite_link in invite_links:
+                f.write(f"{invite_link}\n")
+
+    # Load invite_links from already available query results
+    else:
+        with open(filename, "r") as f:
+            invite_links = f.readlines()
+            invite_links = [link.strip() for link in invite_links]
+
+    await join_invite_links(invite_links)

@@ -226,3 +226,36 @@ class AsyncTelegramClient(TelegramClient):
             except Exception as e:
                 logger.warning(str(e))
                 pass
+
+    async def get_chat_invite(
+        self, link: str, min_participants: int = 50
+    ) -> Optional[types.ChatInvite]:
+        async with self._client as client:
+            try:
+                # Check if its valid
+                chat_invite = await client(
+                    functions.messages.CheckChatInviteRequest(hash=hash)
+                )
+
+                # Do not join groups/channels we are already members
+                if isinstance(chat_invite, types.ChatInviteAlready):
+                    chat = chat_invite.chat
+                    logger.info(
+                        f"Won't join channel {chat.title}, since we are already members"
+                    )
+                    return None
+
+                # Do not join small groups/channels
+                participants = chat_invite.participants_count
+                if participants < min_participants:
+                    logger.info(
+                        f"Won't join channel {chat_invite.title} with only {participants} participants"
+                    )
+                    return None
+
+                return chat_invite
+
+            except errors.InviteHashExpiredError as e:
+                return None
+            except errors.InviteHashInvalidError as e:
+                return None

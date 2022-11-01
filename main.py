@@ -15,7 +15,7 @@ async def main():
         case Selections.SEARCH_TWITTER:
             await search_twitter()
         case Selections.SEARCH_TELEGRAM:
-            await search_telegram()
+            await search_telegram(db)
         case Selections.DOWNLOAD_MESSAGES:
             await download_dialogs(client, db)
 
