@@ -7,3 +7,6 @@ __pycache__
 *.session
 *config.yaml
 *invite_links.txt
+
+# Don't add downloaded files
+downloads

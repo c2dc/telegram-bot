@@ -3,6 +3,7 @@ import asyncio
 from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
 from telegram.dialog import download_dialogs
+from telegram.media import download_media
 from telegram.search import search_telegram, search_twitter
 from telegram.utils import Selections, select
 
@@ -18,6 +19,8 @@ async def main():
             await search_telegram(db)
         case Selections.DOWNLOAD_MESSAGES:
             await download_dialogs(client, db)
+        case Selections.DOWNLOAD_MEDIA:
+            await download_media(client, db)
 
 
 if __name__ == "__main__":
