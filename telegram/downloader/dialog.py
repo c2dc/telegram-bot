@@ -56,24 +56,23 @@ async def ingest_dialog(
         db.commit_changes()
 
 
-async def download_dialogs(
-    client: TelegramClient, db: Database, dialogs: types.Dialog
+async def download_dialog(
+    client: TelegramClient, db: Database, dialog: types.Dialog
 ) -> None:
-    for dialog in dialogs:
-        logger.info(f"Getting messages from dialog {dialog.title}")
+    logger.info(f"Getting messages from dialog {dialog.title}")
 
-        # If the dialog is not in the database, initialize it
-        if db.get_channel_by_id(dialog.id) is None:
-            logger.info(f"Initializing dialog {dialog.name} in the database")
-            db.upsert_channel(
-                channel=Channel(
-                    channel_id=dialog.id,
-                    name=dialog.name,
-                )
+    # If the dialog is not in the database, initialize it
+    if db.get_channel_by_id(dialog.id) is None:
+        logger.info(f"Initializing dialog {dialog.name} in the database")
+        db.upsert_channel(
+            channel=Channel(
+                channel_id=dialog.id,
+                name=dialog.name,
             )
-            db.commit_changes()
-
-        # Ingest new messages
-        await ingest_dialog(
-            client, db, dialog, max_message_id=db.get_max_message_id(dialog.id)
         )
+        db.commit_changes()
+
+    # Ingest new messages
+    await ingest_dialog(
+        client, db, dialog, max_message_id=db.get_max_message_id(dialog.id)
+    )

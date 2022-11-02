@@ -4,7 +4,7 @@ from contextlib import suppress
 
 from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
-from telegram.dump import Dumper
+from telegram.downloader import Downloader
 from telegram.search import Searcher
 from telegram.utils import print_dialogs
 
@@ -62,11 +62,11 @@ async def main(loop):
             elif args.search_messages:
                 await searcher.search_telegram()
         else:
-            dumper = Dumper(client, db)
+            downloader = Downloader(client, db, loop)
             if args.download_past_media is not None:
-                await dumper.download_past_media(dialog_id=args.download_past_media)
+                await downloader.download_past_media(dialog_id=args.download_past_media)
             else:
-                await dumper.download_dialogs()
+                await downloader.download_dialogs()
 
     except asyncio.CancelledError:
         pass
