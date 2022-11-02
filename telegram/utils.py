@@ -1,14 +1,6 @@
-from enum import Enum
 from typing import Any, List
 
 from telethon.tl import types
-
-
-class Selections(Enum):
-    SEARCH_TWITTER = 1
-    SEARCH_TELEGRAM = 2
-    DOWNLOAD_MESSAGES = 3
-    DOWNLOAD_MEDIA = 4
 
 
 def delete_elements(list_object: List[Any], indices: List[int]) -> None:
@@ -16,16 +8,6 @@ def delete_elements(list_object: List[Any], indices: List[int]) -> None:
     for idx in indices:
         if idx < len(list_object):
             list_object.pop(idx)
-
-
-def select() -> Selections:
-    print("[1] Search twitter for channels/groups")
-    print("[2] Search telegram for channels/groups")
-    print("[3] Download messages from joined channels/groups")
-    print("[4] Download media from joined channels/groups")
-    selection = input('What would you like to do? (eg: "1", "2")\n')
-
-    return Selections(int(selection))
 
 
 def select_channels(channels: List[types.Dialog]) -> List[types.Dialog]:
