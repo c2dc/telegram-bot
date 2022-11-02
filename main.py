@@ -4,8 +4,7 @@ from contextlib import suppress
 
 from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
-from telegram.dialog import download_dialogs
-from telegram.media import download_media
+from telegram.dump import Dumper
 from telegram.search import search_telegram, search_twitter
 
 
@@ -20,18 +19,22 @@ def parse_args():
 
     parser.add_argument(
         "--search-twitter",
+        action="store_true",
         help="search for chats to join on twitter",
     )
 
     parser.add_argument(
         "--search-messages",
+        action="store_true",
         help="search for chats to join on already collected messages",
     )
 
     parser.add_argument(
         "--download-past-media",
-        action="store_true",
-        help="download past media (files that were seen before but not downloaded).",
+        nargs="?",
+        const=0,
+        type=int,
+        help="download past media from all chats or from given chat_id",
     )
 
     return parser.parse_args()
@@ -46,17 +49,22 @@ async def main(loop):
     db = PgDatabase()
     client = AsyncTelegramClient()
 
-    if args.search_twitter:
+    if args.list_dialogs is True:
+        print("--list-dialogs not implemented!")
+        pass
+
+    if args.search_twitter is True:
         return await search_twitter()
 
-    if args.search_messages:
+    if args.search_messages is True:
         return await search_telegram(db)
 
     try:
-        if args.download_past_media:
-            await download_media(client, db)
+        dumper = Dumper(client, db)
+        if args.download_past_media is not None:
+            await dumper.download_past_media(dialog_id=args.download_past_media)
         else:
-            await download_dialogs(client, db)
+            await dumper.download_dialogs()
     except asyncio.CancelledError:
         pass
 
@@ -72,11 +80,11 @@ if __name__ == "__main__":
     for task in asyncio.all_tasks(loop=loop):
         task.cancel()
         # Now we should await task to execute it's cancellation.
-        # Cancelled task raises asyncio.CancelledError that we can suppress:
         if task.get_coro() == "main":
             continue
         with suppress(asyncio.CancelledError):
             asyncio.run(task)
+
     loop.stop()
     loop.close()
     exit(ret)

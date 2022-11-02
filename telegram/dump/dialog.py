@@ -1,10 +1,9 @@
 from telethon import types
 
-from telegram.client import TelegramClient
-from telegram.common import BATCH_SIZE, logger
-from telegram.database import Database
-from telegram.models import Channel, Message
-from telegram.utils import select_channels, select_groups
+from ..client import TelegramClient
+from ..common import BATCH_SIZE, logger
+from ..database import Database
+from ..models import Channel, Message
 
 
 async def ingest_dialog(
@@ -57,18 +56,10 @@ async def ingest_dialog(
         db.commit_changes()
 
 
-async def download_dialogs(client: TelegramClient, db: Database) -> None:
-    # Get channels from chat history
-    channels = await client.get_channels()
-    selected_channels = select_channels(channels)
-
-    # Get groups from chat history
-    groups = await client.get_groups()
-    selected_groups = select_groups(groups)
-
-    selected_dialogs = selected_channels + selected_groups
-
-    for dialog in selected_dialogs:
+async def download_dialogs(
+    client: TelegramClient, db: Database, dialogs: types.Dialog
+) -> None:
+    for dialog in dialogs:
         logger.info(f"Getting messages from dialog {dialog.title}")
 
         # If the dialog is not in the database, initialize it

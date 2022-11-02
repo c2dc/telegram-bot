@@ -61,25 +61,21 @@ class TelegramClient(ABC):
         pass
 
     @abstractmethod
-    async def get_channel_info(self, channel: types.Channel) -> types.messages.ChatFull:
+    async def get_entity_from_id(self, id: int) -> Optional[types.Dialog]:
         pass
 
     @abstractmethod
-    async def get_channel_users(
-        self, channel: types.Channel, limit: float = 1000
+    async def get_dialog_info(self, dialog: types.Dialog) -> types.messages.ChatFull:
+        pass
+
+    @abstractmethod
+    async def get_dialog_users(
+        self, dialog: types.Dialog, limit: float = 1000
     ) -> List[types.User]:
         pass
 
     @abstractmethod
-    async def get_channels(self, limit: float = 1000) -> List[types.Dialog]:
-        pass
-
-    @abstractmethod
-    async def get_groups(self, limit: float = 1000) -> List[types.Dialog]:
-        pass
-
-    @abstractmethod
-    async def get_me(self) -> types.User:
+    async def get_dialogs(self, limit: float = 1000) -> List[types.Dialog]:
         pass
 
     @abstractmethod
@@ -133,11 +129,21 @@ class AsyncTelegramClient(TelegramClient):
                 logger.warning(str(e))
                 raise e
 
-    async def get_channel_info(self, channel: types.Channel) -> types.messages.ChatFull:
+    async def get_entity_from_id(self, id: int) -> Optional[types.Dialog]:
+        async with self._client as client:
+            try:
+                entity = await client.get_entity(id)
+            except ValueError as e:
+                logger.warning(str(e))
+                return None
+
+        return entity
+
+    async def get_dialog_info(self, dialog: types.Dialog) -> types.messages.ChatFull:
         async with self._client as client:
             try:
                 data = await client(
-                    functions.channels.GetFullChannelRequest(channel=channel)
+                    functions.channels.GetFullChannelRequest(channel=dialog)
                 )
             except ValueError as e:
                 logger.warning(str(e))
@@ -145,57 +151,30 @@ class AsyncTelegramClient(TelegramClient):
 
         return json.loads(data.to_json())
 
-    async def get_channel_users(
-        self, channel: types.Channel, limit: float = 1000
+    async def get_dialog_users(
+        self, dialog: types.Dialog, limit: float = 1000
     ) -> List[types.User]:
         async with self._client as client:
             try:
-                participants = await client.get_participants(channel, limit)
+                participants = await client.get_participants(dialog, limit)
             except errors.ChatAdminRequiredError as e:
                 logger.warning(str(e))
                 raise e
 
         return participants
 
-    async def get_channels(self, limit: float = 1000) -> List[types.Dialog]:
+    async def get_dialogs(self, limit: float = 1000) -> List[types.Dialog]:
         async with self._client as client:
             try:
                 dialogs = await client.get_dialogs(limit)
-                channels = [
-                    dialog
-                    for dialog in dialogs
-                    if not dialog.is_group and dialog.is_channel
+                dialogs = [
+                    dialog for dialog in dialogs if dialog.is_group or dialog.is_channel
                 ]
             except ValueError as e:
                 logger.warning(str(e))
                 raise e
 
-        return channels
-
-    async def get_groups(self, limit: float = 1000) -> List[types.Dialog]:
-        async with self._client as client:
-            try:
-                dialogs = await client.get_dialogs(limit)
-                groups = [
-                    dialog
-                    for dialog in dialogs
-                    if dialog.is_group and dialog.is_channel
-                ]
-            except ValueError as e:
-                logger.warning(str(e))
-                raise e
-
-        return groups
-
-    async def get_me(self) -> types.User:
-        async with self._client as client:
-            try:
-                me = await client.get_me()
-            except ValueError as e:
-                logger.warning(str(e))
-                raise e
-
-        return me
+        return dialogs
 
     async def join_private_channel(self, hash: str) -> None:
         async with self._client as client:
