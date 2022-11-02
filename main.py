@@ -5,7 +5,7 @@ from contextlib import suppress
 from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
 from telegram.dump import Dumper
-from telegram.search import search_telegram, search_twitter
+from telegram.search import Searcher
 
 
 def parse_args():
@@ -45,7 +45,6 @@ async def main(loop):
     The main telegram-bot program. Goes through all the subscribed dialogs and dumps them.
     """
     args = parse_args()
-
     db = PgDatabase()
     client = AsyncTelegramClient()
 
@@ -53,18 +52,20 @@ async def main(loop):
         print("--list-dialogs not implemented!")
         pass
 
-    if args.search_twitter is True:
-        return await search_twitter()
-
-    if args.search_messages is True:
-        return await search_telegram(db)
-
     try:
-        dumper = Dumper(client, db)
-        if args.download_past_media is not None:
-            await dumper.download_past_media(dialog_id=args.download_past_media)
+        if args.search_twitter or args.search_messages:
+            searcher = Searcher(db)
+            if args.search_twitter:
+                await searcher.search_twitter()
+            elif args.search_messages:
+                await searcher.search_telegram()
         else:
-            await dumper.download_dialogs()
+            dumper = Dumper(client, db)
+            if args.download_past_media is not None:
+                await dumper.download_past_media(dialog_id=args.download_past_media)
+            else:
+                await dumper.download_dialogs()
+
     except asyncio.CancelledError:
         pass
 
