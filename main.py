@@ -6,6 +6,7 @@ from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
 from telegram.dump import Dumper
 from telegram.search import Searcher
+from telegram.utils import print_dialogs
 
 
 def parse_args():
@@ -49,8 +50,9 @@ async def main(loop):
     client = AsyncTelegramClient()
 
     if args.list_dialogs is True:
-        print("--list-dialogs not implemented!")
-        pass
+        dialogs = await client.get_dialogs()
+        print_dialogs(dialogs)
+        return
 
     try:
         if args.search_twitter or args.search_messages:

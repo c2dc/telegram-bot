@@ -20,3 +20,8 @@ def select_dialogs(dialogs: List[types.Dialog]) -> List[types.Dialog]:
     delete_elements(selected_dialogs, indices)
 
     return selected_dialogs
+
+
+def print_dialogs(dialogs: List[types.Dialog]) -> None:
+    for i, dialog in enumerate(dialogs):
+        print(f"[{i+1}] {dialog.title} (id={dialog.id})")
