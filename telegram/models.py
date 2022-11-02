@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Text,
     UniqueConstraint,
@@ -68,7 +69,7 @@ class Message(Base):
     fwd_from_name = Column(Text, nullable=True)
     fwd_post_author = Column(Text, nullable=True)
 
-    message_utc = Column(TIMESTAMP, nullable=True)
+    message_utc = Column(TIMESTAMP, nullable=True)  # nullable because of old entries
     retrieved_utc = Column(TIMESTAMP, nullable=False, server_default=func.now())
     updated_utc = Column(
         TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
@@ -122,3 +123,52 @@ class Message(Base):
                 return peer_id.chat_id
             case _:
                 return None
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False)
+
+    username = Column(Text, nullable=True)
+    first_name = Column(Text, nullable=True)
+    last_name = Column(Text, nullable=True)
+    phone = Column(Text, nullable=True)
+
+    verified = Column(Boolean, nullable=True)
+    restricted = Column(Boolean, nullable=True)
+    scam = Column(Boolean, nullable=True)
+    fake = Column(Boolean, nullable=True)
+
+    retrieved_utc = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_utc = Column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Media(Base):
+    __tablename__ = "media"
+
+    id = Column(Integer, primary_key=True)
+    media_id = Column(BigInteger, nullable=False)
+    channel_id = Column(BigInteger, nullable=False)
+    message_id = Column(BigInteger, nullable=False)
+    dc_id = Column(Integer, nullable=True)
+    access_hash = Column(BigInteger, nullable=True)
+
+    mime_type = Column(Text, nullable=True)
+    type = Column(Text, nullable=True)
+    size = Column(Integer, nullable=True)
+
+    message_utc = Column(TIMESTAMP, nullable=False)
+    retrieved_utc = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_utc = Column(
+        TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            [channel_id, message_id], [Message.channel_id, Message.message_id]
+        ),
+    )
