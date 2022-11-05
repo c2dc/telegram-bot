@@ -33,10 +33,8 @@ def parse_args():
 
     parser.add_argument(
         "--download-past-media",
-        nargs="?",
-        const=0,
-        type=int,
-        help="download past media from all chats or from given chat_id",
+        action="store_true",
+        help="download past media from all dialogs",
     )
 
     return parser.parse_args()
@@ -65,8 +63,8 @@ async def main():
                 await searcher.search_messages()
         else:
             downloader = Downloader(client, db)
-            if args.download_past_media is not None:
-                await downloader.download_past_media(dialog_id=args.download_past_media)
+            if args.download_past_media is True:
+                await downloader.download_past_media_from_dialogs()
             else:
                 await downloader.download_dialogs()
 

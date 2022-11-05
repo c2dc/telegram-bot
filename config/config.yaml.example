@@ -9,3 +9,9 @@ db_name: postgres
 # Twarc2 credentials
 consumer_key: xxxxxx
 consumer_secret: xxxxxx
+whitelist:
+  - xxxxxx
+  - xxxxxx
+blacklist:
+  - xxxxxx
+  - xxxxxx

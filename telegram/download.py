@@ -6,10 +6,9 @@ from typing import Any, List
 from telethon.tl import types
 
 from .client import TelegramClient
-from .common import BATCH_SIZE, logger
+from .common import BATCH_SIZE, config, logger
 from .database import Database
 from .models import Channel, Message
-from .utils import select_dialogs
 
 USER_FULL_DELAY = 1.5
 CHAT_FULL_DELAY = 1.5
@@ -28,6 +27,9 @@ class Downloader:
         self.client = client
 
         self._checked_entity_ids: set[int] = set()
+
+        self.whitelist = config.get("whitelist")
+        self.blacklist = config.get("blacklist")
 
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
@@ -161,15 +163,29 @@ class Downloader:
             ):
                 os.remove(self._incomplete_download)
 
+    async def download_past_media(self, dialog: types.Dialog) -> None:
+        """
+        Downloads the past media that has already been dumped into the
+        database but has not been downloaded for the given dialog yet.
+
+        Media with formatted filename results in an already-existing file
+        will be *ignored* and not re-downloaded again.
+        """
+
+        pass
+
     async def download_dialogs(self) -> None:
         """
         Perform a dump of the dialogs we've been told to act on.
         """
 
         dialogs = await self.client.get_dialogs()
-        selected_dialogs = select_dialogs(dialogs)
+        if self.whitelist:
+            dialogs = [dialog for dialog in dialogs if dialog.id in self.whitelist]
+        elif self.blacklist:
+            dialogs = [dialog for dialog in dialogs if dialog.id not in self.blacklist]
 
-        for dialog in selected_dialogs:
+        for dialog in dialogs:
             logger.info(f"Getting messages from dialog {dialog.title}")
 
             # If the dialog is not in the database, initialize it
@@ -185,22 +201,18 @@ class Downloader:
             # Ingest new messages
             await self.start(dialog)
 
-    async def download_past_media(self, dialog_id: int) -> None:
+    async def download_past_media_from_dialogs(self) -> None:
         """
-        Downloads the past media that has already been dumped into the
-        database but has not been downloaded for the given target ID yet.
-
-        Media which formatted filename results in an already-existing file
-        will be *ignored* and not re-downloaded again.
+        Download past media (media we saw but didn't download before) of the
+        dialogs we've been told to act on
         """
 
-        dialogs = []
-        if dialog_id != 0:
-            dialog = await self.client.get_entity_from_id(dialog_id)
-            if dialog:
-                dialogs.append(dialog)
-        else:
-            dialogs = await self.client.get_dialogs()
+        dialogs = await self.client.get_dialogs()
+        if self.whitelist:
+            dialogs = [dialog for dialog in dialogs if dialog.id in self.whitelist]
+        elif self.blacklist:
+            dialogs = [dialog for dialog in dialogs if dialog.id not in self.blacklist]
 
         for dialog in dialogs:
-            await download_media(client=self.client, db=self.db, dialog=dialog)
+            logger.info(f"Getting past media from dialog {dialog.title}")
+            await self.download_past_media(dialog=dialog)
