@@ -4,7 +4,7 @@ from contextlib import suppress
 
 from telegram.client import AsyncTelegramClient
 from telegram.database import PgDatabase
-from telegram.downloader import Downloader
+from telegram.download import Downloader
 from telegram.search import Searcher
 from telegram.utils import print_dialogs
 
@@ -57,7 +57,7 @@ async def main():
 
     try:
         if args.search_twitter or args.search_messages:
-            searcher = Searcher(args, db)
+            searcher = Searcher(args, client, db)
             if args.search_twitter:
                 await searcher.search_twitter()
             elif args.search_messages:

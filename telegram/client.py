@@ -86,6 +86,18 @@ class TelegramClient(ABC):
     async def join_public_channel(self, link: str) -> None:
         pass
 
+    @abstractmethod
+    async def get_chat_invite(
+        self, hash: str, min_participants: int = 50
+    ) -> Optional[types.ChatInvite]:
+        pass
+
+    @abstractmethod
+    async def get_entity(
+        self, link: str, min_participants: int = 50
+    ) -> Optional[types.Chat]:
+        pass
+
 
 class AsyncTelegramClient(TelegramClient):
     def __init__(self) -> None:

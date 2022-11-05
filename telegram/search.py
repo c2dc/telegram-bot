@@ -1,4 +1,3 @@
-import asyncio
 import os
 import re
 from datetime import datetime, timedelta, timezone
@@ -7,14 +6,14 @@ from typing import List
 from tqdm import tqdm
 from twarc.client2 import Twarc2
 
-from .client import AsyncTelegramClient
+from .client import TelegramClient
 from .common import config, logger
 from .database import Database
 
 
 class Searcher:
-    def __init__(self, args, db: Database):
-        self.tl_client = AsyncTelegramClient()
+    def __init__(self, args, db: Database, client: TelegramClient):
+        self.tl_client = client
 
         if args.search_twitter:
             self.tw_client = Twarc2(
