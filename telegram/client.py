@@ -46,6 +46,14 @@ class TelegramClient(ABC):
         pass
 
     @abstractmethod
+    async def connect(self) -> None:
+        pass
+
+    @abstractmethod
+    async def disconnect(self) -> None:
+        pass
+
+    @abstractmethod
     async def fetch_messages(
         self,
         dialog: Optional[types.Dialog],
@@ -106,6 +114,12 @@ class AsyncTelegramClient(TelegramClient):
             config["api_id"],
             config["api_hash"],
         )
+
+    async def connect(self) -> None:
+        await self.client.connect()
+
+    async def disconnect(self) -> None:
+        await self.client.disconnect()
 
     async def fetch_messages(
         self, dialog, limit=100, max_id=None, min_id=None, reverse=True

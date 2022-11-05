@@ -1,18 +1,15 @@
 import asyncio
 import os
 import time
-from typing import Any, List, Optional
+from typing import Any, List
 
 from telethon.tl import types
 
-from ..client import TelegramClient
-from ..common import BATCH_SIZE, logger
-from ..database import Database
-from ..models import Channel, Message
-from ..utils import select_dialogs
-
-# from .dialog import download_dialog
-from .media import download_media
+from .client import TelegramClient
+from .common import BATCH_SIZE, logger
+from .database import Database
+from .models import Channel, Message
+from .utils import select_dialogs
 
 USER_FULL_DELAY = 1.5
 CHAT_FULL_DELAY = 1.5
@@ -72,6 +69,10 @@ class Downloader:
             await asyncio.sleep(delay)
 
     async def start(self, dialog: types.Dialog) -> None:
+        """
+        Starts the dump with the given dialog.
+        """
+
         self._running = True
         self._incomplete_download = None  # type: ignore
         self._folderpath: str = self._create_download_folder(dialog)
@@ -161,6 +162,10 @@ class Downloader:
                 os.remove(self._incomplete_download)
 
     async def download_dialogs(self) -> None:
+        """
+        Perform a dump of the dialogs we've been told to act on.
+        """
+
         dialogs = await self.client.get_dialogs()
         selected_dialogs = select_dialogs(dialogs)
 
@@ -181,6 +186,14 @@ class Downloader:
             await self.start(dialog)
 
     async def download_past_media(self, dialog_id: int) -> None:
+        """
+        Downloads the past media that has already been dumped into the
+        database but has not been downloaded for the given target ID yet.
+
+        Media which formatted filename results in an already-existing file
+        will be *ignored* and not re-downloaded again.
+        """
+
         dialogs = []
         if dialog_id != 0:
             dialog = await self.client.get_entity_from_id(dialog_id)

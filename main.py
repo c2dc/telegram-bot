@@ -3,6 +3,7 @@ import asyncio
 from contextlib import suppress
 
 from telegram.client import AsyncTelegramClient
+from telegram.common import logger
 from telegram.database import PgDatabase
 from telegram.download import Downloader
 from telegram.search import Searcher
@@ -48,7 +49,7 @@ async def main():
     args = parse_args()
     db = PgDatabase()
     client = AsyncTelegramClient()
-    await client.client.connect()
+    await client.connect()
 
     if args.list_dialogs is True:
         dialogs = await client.get_dialogs()
@@ -72,7 +73,10 @@ async def main():
     except asyncio.CancelledError:
         pass
     finally:
-        await client.client.disconnect()
+        logger.info("Disconnecting client")
+        await client.disconnect()
+
+    logger.info("Exited succesfully")
 
 
 if __name__ == "__main__":
@@ -84,14 +88,13 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         ret = 1
 
-    # for task in asyncio.all_tasks():
-    #     task.cancel()
-    #     # Now we should await task to execute it's cancellation.
-    #     if task.get_coro() == "main":
-    #         continue
-    #     with suppress(asyncio.CancelledError):
-    #         loop.run_until_complete(task)
+    for task in asyncio.all_tasks(loop=loop):
+        if task.get_coro() == "main":
+            continue
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            loop.run_until_complete(task)
 
-    # loop.stop()
-    # loop.close()
+    loop.stop()
+    loop.close()
     exit(ret)
