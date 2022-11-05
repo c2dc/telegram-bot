@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from datetime import datetime, timedelta, timezone
@@ -10,11 +11,11 @@ from .client import AsyncTelegramClient
 from .common import config, logger
 from .database import Database
 
-tl_client = AsyncTelegramClient()
-
 
 class Searcher:
     def __init__(self, args, db: Database):
+        self.tl_client = AsyncTelegramClient()
+
         if args.search_twitter:
             self.tw_client = Twarc2(
                 consumer_key=config["consumer_key"],
@@ -43,13 +44,13 @@ class Searcher:
             instant_view_match = re.search(instant_view_pattern, link)
 
             if public_match:
-                await tl_client.join_public_channel(link)
+                await self.tl_client.join_public_channel(link)
             elif embedded_match:
                 link = "/".join(link.split("/")[:-1])
-                await tl_client.join_public_channel(link)
+                await self.tl_client.join_public_channel(link)
             elif private_match:
                 hash = private_match.group(5)
-                await tl_client.join_private_channel(hash=hash)
+                await self.tl_client.join_private_channel(hash=hash)
             elif instant_view_match:
                 pass
             else:
@@ -131,10 +132,10 @@ class Searcher:
 
             if private_match:
                 hash = "/".join(url.split("/")[:-1])
-                chat_invite = await tl_client.get_chat_invite(hash)
+                chat_invite = await self.tl_client.get_chat_invite(hash)
                 final_urls.add(url)
             elif public_match:
-                entity = await tl_client.get_entity(url)
+                entity = await self.tl_client.get_entity(url)
                 final_urls.add(url)
 
         return list(final_urls)

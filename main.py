@@ -41,13 +41,14 @@ def parse_args():
     return parser.parse_args()
 
 
-async def main(loop):
+async def main():
     """
     The main telegram-bot program. Goes through all the subscribed dialogs and dumps them.
     """
     args = parse_args()
     db = PgDatabase()
     client = AsyncTelegramClient()
+    await client.client.connect()
 
     if args.list_dialogs is True:
         dialogs = await client.get_dialogs()
@@ -56,13 +57,13 @@ async def main(loop):
 
     try:
         if args.search_twitter or args.search_messages:
-            searcher = Searcher(db)
+            searcher = Searcher(args, db)
             if args.search_twitter:
                 await searcher.search_twitter()
             elif args.search_messages:
-                await searcher.search_telegram()
+                await searcher.search_messages()
         else:
-            downloader = Downloader(client, db, loop)
+            downloader = Downloader(client, db)
             if args.download_past_media is not None:
                 await downloader.download_past_media(dialog_id=args.download_past_media)
             else:
@@ -70,24 +71,27 @@ async def main(loop):
 
     except asyncio.CancelledError:
         pass
+    finally:
+        await client.client.disconnect()
 
 
 if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
     try:
-        ret = asyncio.run(main(loop=loop)) or 0
+        ret = loop.run_until_complete(main()) or 0
     except KeyboardInterrupt:
         ret = 1
 
-    for task in asyncio.all_tasks(loop=loop):
-        task.cancel()
-        # Now we should await task to execute it's cancellation.
-        if task.get_coro() == "main":
-            continue
-        with suppress(asyncio.CancelledError):
-            asyncio.run(task)
+    # for task in asyncio.all_tasks():
+    #     task.cancel()
+    #     # Now we should await task to execute it's cancellation.
+    #     if task.get_coro() == "main":
+    #         continue
+    #     with suppress(asyncio.CancelledError):
+    #         loop.run_until_complete(task)
 
-    loop.stop()
-    loop.close()
+    # loop.stop()
+    # loop.close()
     exit(ret)
