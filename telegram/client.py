@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from telethon import TelegramClient as AsyncTelegram
 from telethon import errors
@@ -65,7 +65,9 @@ class TelegramClient(ABC):
         pass
 
     @abstractmethod
-    async def get_media(self, message: types.Message, filename: str) -> None:
+    async def get_media(
+        self, message: types.Message, filename: str, callback: Optional[Callable] = None
+    ) -> None:
         pass
 
     @abstractmethod
@@ -140,12 +142,9 @@ class AsyncTelegramClient(TelegramClient):
 
         return messages
 
-    async def get_media(self, message: types.Message, filename: str) -> None:
-        def callback(current, total):
-            print(
-                f"Downloaded {current} out of {total} total bytes: {(current / total):.2%}"
-            )
-
+    async def get_media(
+        self, message: types.Message, filename: str, callback: Optional[Callable] = None
+    ) -> None:
         try:
             result = await self.client.download_media(
                 message=message, file=filename, progress_callback=callback

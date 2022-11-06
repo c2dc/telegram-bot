@@ -22,6 +22,10 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    def insert_media(self, media: list) -> None:
+        pass
+
+    @abstractmethod
     def upsert_channel(self, channel) -> None:
         pass
 
@@ -55,6 +59,9 @@ class PgDatabase(Database):
 
     def insert_messages(self, messages: list) -> None:
         self.session.add_all(messages)
+
+    def insert_media(self, media: list) -> None:
+        self.session.add_all(media)
 
     def upsert_channel(self, channel) -> None:
         statement = (

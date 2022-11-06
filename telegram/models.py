@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import (
     TIMESTAMP,
@@ -172,3 +172,54 @@ class Media(Base):
             [channel_id, message_id], [Message.channel_id, Message.message_id]
         ),
     )
+
+    def __init__(
+        self,
+        message: types.Message,
+        channel_id: int,
+    ):
+        self.channel_id = channel_id
+        self.message_id = message.id
+
+        if isinstance(message.media, types.MessageMediaDocument):
+            document = message.media.document
+            self.media_id = document.id
+            self.dc_id = document.dc_id
+            self.access_hash = document.access_hash
+            self.mime_type = document.mime_type
+            self.size = document.size
+
+            doc_types: List[str] = []
+            for attribute in document.attributes:
+                doc_type = self._match_doc_type(attribute)
+                if doc_type is not None:
+                    doc_types.append(doc_type)
+            self.type = ",".join([type for type in doc_types if type is not None])
+
+            self.message_utc = document.date
+        elif isinstance(message.media, types.MessageMediaPhoto):
+            photo = message.media.photo
+            self.media_id = photo.id
+            self.dc_id = photo.dc_id
+            self.access_hash = photo.access_hash
+
+            for size in photo.sizes:
+                if isinstance(size, types.PhotoSize):
+                    self.size = size.size
+
+            self.message_utc = photo.date
+
+    def _match_doc_type(self, attribute) -> Optional[str]:
+        match attribute:
+            case types.DocumentAttributeImageSize():
+                return "image"
+            case types.DocumentAttributeAnimated():
+                return "gif"
+            case types.DocumentAttributeVideo():
+                return "video"
+            case types.DocumentAttributeAudio():
+                return "audio"
+            case types.DocumentAttributeFilename():
+                return "document"
+            case _:
+                return None

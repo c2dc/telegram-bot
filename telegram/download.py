@@ -4,14 +4,19 @@ import time
 from typing import Any, List
 
 from telethon.tl import types
+from tqdm import tqdm
 
 from .client import TelegramClient
 from .common import BATCH_SIZE, config, logger
 from .database import Database
-from .models import Channel, Message
+from .models import Channel, Media, Message
 
-USER_FULL_DELAY = 1.5
-CHAT_FULL_DELAY = 1.5
+BAR_FORMAT = (
+    "{l_bar}{bar}| {n_fmt}/{total_fmt} "
+    "[{elapsed}<{remaining}, {rate_noinv_fmt}{postfix}]"
+)
+DOWNLOAD_PART_SIZE = 256 * 1024
+
 MEDIA_DELAY = 3.0
 HISTORY_DELAY = 1.0
 
@@ -25,9 +30,6 @@ class Downloader:
     def __init__(self, client: TelegramClient, db: Database) -> None:
         self.db = db
         self.client = client
-
-        self._checked_entity_ids: set[int] = set()
-
         self.whitelist = config.get("whitelist")
         self.blacklist = config.get("blacklist")
 
@@ -38,10 +40,17 @@ class Downloader:
         self._running = False
 
     def _check_media(self, message: types.Message) -> bool:
-        if not message.media:
-            return False
+        if isinstance(message.media, types.MessageMediaDocument) and isinstance(
+            message.media.document, types.Document
+        ):
+            return True
 
-        return True
+        if isinstance(message.media, types.MessageMediaPhoto) and isinstance(
+            message.media.photo, types.Photo
+        ):
+            return True
+
+        return False
 
     def _create_download_folder(self, dialog: types.Dialog) -> str:
         folderpath = os.path.join("downloads", dialog.title)
@@ -50,25 +59,30 @@ class Downloader:
 
         return folderpath
 
-    def enqueue_media(self, messages: List[types.Message]) -> None:
-        for message in messages:
-            self._media_queue.put_nowait(message)
+    async def _download_media(self, message) -> None:
+        filename = os.path.join(self._folderpath, str(message.id))
+        if os.path.isfile(filename):
+            return
 
-    async def _media_consumer(self, queue) -> None:
+        self._incomplete_download = filename
+        await self.client.get_media(message=message, filename=filename)
+        self._incomplete_download = None  # type: ignore
+
+    async def _media_consumer(self, queue, bar) -> None:
         while self._running:
             start = time.time()
 
             message = await queue.get()
-            filename = os.path.join(self._folderpath, str(message.id))
-
-            self._incomplete_download = filename
-            await self.client.get_media(message=message, filename=filename)
-            self._incomplete_download = None  # type: ignore
-
+            await self._download_media(message)
             queue.task_done()
+            bar.update(1)
 
             delay = max(MEDIA_DELAY - (time.time() - start), 0)
             await asyncio.sleep(delay)
+
+    def enqueue_media(self, messages: List[types.Message]) -> None:
+        for message in messages:
+            self._media_queue.put_nowait(message)
 
     async def start(self, dialog: types.Dialog) -> None:
         """
@@ -79,8 +93,17 @@ class Downloader:
         self._incomplete_download = None  # type: ignore
         self._folderpath: str = self._create_download_folder(dialog)
 
+        # Create tqdm bars
+        med_bar = tqdm(
+            unit=" files",
+            desc="files",
+            total=0,
+            bar_format=BAR_FORMAT,
+            postfix={"chat": dialog.title},
+        )
+
         # Create asyncio Tasks
-        asyncio.ensure_future(self._media_consumer(self._media_queue))
+        asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
 
         # Resume entities and media download
         # self.enqueue_media()
@@ -104,7 +127,7 @@ class Downloader:
                     break
 
                 # Insert messages into the database
-                records = [
+                message_records = [
                     Message(
                         message=message,
                         channel_id=dialog.id,
@@ -112,13 +135,7 @@ class Downloader:
                     for message in messages
                     if isinstance(message, types.Message)
                 ]
-                self.db.insert_messages(records)
-
-                # Enqueue messages with media to be downloaded
-                messages_with_media = [
-                    message for message in messages if self._check_media(message)
-                ]
-                self.enqueue_media(messages_with_media)
+                self.db.insert_messages(message_records)
 
                 # Update max_message_id
                 max_id = max([message.id for message in messages])
@@ -137,6 +154,24 @@ class Downloader:
                 # Commit transaction
                 self.db.commit_changes()
 
+                # Insert media metadata into the database
+                media_records = [
+                    Media(message, channel_id=dialog.id)
+                    for message in messages
+                    if self._check_media(message)
+                ]
+                self.db.insert_media(media_records)
+
+                # Enqueue messages with media to be downloaded
+                messages_with_media = [
+                    message for message in messages if self._check_media(message)
+                ]
+                med_bar.total += len(messages_with_media)
+                self.enqueue_media(messages_with_media)
+
+                # Commit transaction
+                self.db.commit_changes()
+
                 delay = max(HISTORY_DELAY - (time.time() - start), 0)
                 if delay > HISTORY_DELAY:
                     delay = HISTORY_DELAY
@@ -146,6 +181,8 @@ class Downloader:
 
         finally:
             self._running = False
+            med_bar.n = med_bar.total
+            med_bar.close()
 
             # # If the download was interrupted and there is media left in the
             # # queue we want to save them into the database for the next run.
@@ -172,6 +209,7 @@ class Downloader:
         will be *ignored* and not re-downloaded again.
         """
 
+        print("Not implemented!")
         pass
 
     async def download_dialogs(self) -> None:
