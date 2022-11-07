@@ -129,7 +129,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, nullable=False, unique=True)
 
     username = Column(Text, nullable=True)
     first_name = Column(Text, nullable=True)
@@ -145,6 +145,37 @@ class User(Base):
     updated_utc = Column(
         TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    def __init__(self, user: types.User) -> None:
+        self.user_id = user.id
+
+        self.username = user.username
+        self.first_name = user.first_name
+        self.last_name = user.last_name
+        self.phone = user.phone
+
+        self.verified = user.verified
+        self.restricted = user.restricted
+        self.scam = user.scam
+        self.fake = user.fake
+
+
+class UserChannel(Base):
+    __tablename__ = "users_channels"
+
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(BigInteger, ForeignKey(Channel.channel_id), nullable=False)
+    user_id = Column(BigInteger, ForeignKey(User.user_id), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "channel_id", name="uq_users_channels_user_id_channel_id"
+        ),
+    )
+
+    def __init__(self, channel_id: int, user_id: int) -> None:
+        self.channel_id = channel_id
+        self.user_id = user_id
 
 
 class Media(Base):

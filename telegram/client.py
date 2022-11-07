@@ -80,7 +80,7 @@ class TelegramClient(ABC):
 
     @abstractmethod
     async def get_dialog_users(
-        self, dialog: types.Dialog, limit: float = 1000
+        self, dialog: types.Dialog, limit: int = 1000
     ) -> List[types.User]:
         pass
 
@@ -174,13 +174,14 @@ class AsyncTelegramClient(TelegramClient):
         return json.loads(data.to_json())
 
     async def get_dialog_users(
-        self, dialog: types.Dialog, limit: float = 1000
+        self, dialog: types.Dialog, limit: int = 10000
     ) -> List[types.User]:
         try:
+            # Telegram API's limit the number of users we can retrieve to 10k
             participants = await self.client.get_participants(dialog, limit)
         except errors.ChatAdminRequiredError as e:
             logger.warning(str(e))
-            raise e
+            return []
 
         return participants
 

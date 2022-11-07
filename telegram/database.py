@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .common import logger
 from .connector import init_connection_engine
-from .models import Channel, Message, ResumeMedia
+from .models import Channel, Message, ResumeMedia, User, UserChannel
 
 
 class Database(ABC):
@@ -27,6 +27,14 @@ class Database(ABC):
 
     @abstractmethod
     def insert_resume_media(self, resume_media: list) -> None:
+        pass
+
+    @abstractmethod
+    def insert_users(self, users: list) -> None:
+        pass
+
+    @abstractmethod
+    def insert_users_channels(self, users_channels: list) -> None:
         pass
 
     @abstractmethod
@@ -61,6 +69,10 @@ class Database(ABC):
     def commit_changes(self) -> None:
         pass
 
+    @abstractmethod
+    def flush_changes(self) -> None:
+        pass
+
 
 class PgDatabase(Database):
     def __init__(self):
@@ -77,6 +89,23 @@ class PgDatabase(Database):
 
     def insert_resume_media(self, resume_media: list) -> None:
         self.session.add_all(resume_media)
+
+    def insert_users(self, users: list) -> None:
+        # Don't add duplicate users
+        existing = self.session.execute(select(User.user_id)).scalars().all()
+        users = [user for user in users if user.user_id not in existing]
+        self.session.add_all(users)
+
+    def insert_users_channels(self, users_channels: list) -> None:
+        # Don't add duplicate relations
+        existing = self.session.execute(
+            select(UserChannel.channel_id, UserChannel.user_id)
+        ).all()
+        users_channels = [
+            uc for uc in users_channels if (uc.channel_id, uc.user_id) not in existing
+        ]
+
+        self.session.add_all(users_channels)
 
     def upsert_channel(self, channel) -> None:
         statement = (
@@ -135,3 +164,12 @@ class PgDatabase(Database):
         except Exception as e:
             logger.error(f"Failed to commit. Error: {e}.")
             self.session.rollback()
+            raise e
+
+    def flush_changes(self) -> None:
+        try:
+            self.session.flush()
+        except Exception as e:
+            logger.error(f"Failed to flush. Error: {e}.")
+            self.session.rollback()
+            raise e

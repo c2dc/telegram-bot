@@ -10,7 +10,7 @@ from tqdm import tqdm
 from .client import TelegramClient
 from .common import BATCH_SIZE, config, logger
 from .database import Database
-from .models import Channel, Media, Message, ResumeMedia
+from .models import Channel, Media, Message, ResumeMedia, User, UserChannel
 
 BAR_FORMAT = (
     "{l_bar}{bar}| {n_fmt}/{total_fmt} "
@@ -141,6 +141,7 @@ class Downloader:
                     if isinstance(message, types.Message)
                 ]
                 self.db.insert_messages(message_records)
+                self.db.flush_changes()
 
                 # Update max_message_id
                 max_id = max([message.id for message in messages])
@@ -155,9 +156,6 @@ class Downloader:
                         max_message_id=max_message_id,  # type: ignore
                     )
                 )
-
-                # Commit transaction
-                self.db.commit_changes()
 
                 # Insert media metadata into the database
                 media_records = [
@@ -219,6 +217,24 @@ class Downloader:
         print("Not implemented!")
         pass
 
+    async def download_participants(self, dialog: types.Dialog) -> None:
+        users = await self.client.get_dialog_users(dialog=dialog)
+        logger.info(f"Downloaded {len(users)} users from dialog {dialog.name}")
+
+        # Insert users into the database
+        user_records = [User(user) for user in users]
+        self.db.insert_users(user_records)
+        self.db.flush_changes()
+
+        # Insert user and channels relationship into the database
+        user_channel_records = [
+            UserChannel(channel_id=dialog.id, user_id=user.id) for user in users
+        ]
+        self.db.insert_users_channels(user_channel_records)
+
+        # Commit transaction
+        self.db.commit_changes()
+
     async def download_dialogs(self) -> None:
         """
         Perform a dump of the dialogs we've been told to act on.
@@ -261,3 +277,25 @@ class Downloader:
         for dialog in dialogs:
             logger.info(f"Getting past media from dialog {dialog.title}")
             await self.download_past_media(dialog=dialog)
+
+    async def download_participants_from_dialogs(self) -> None:
+        dialogs = await self.client.get_dialogs()
+        if self.whitelist:
+            dialogs = [dialog for dialog in dialogs if dialog.id in self.whitelist]
+        elif self.blacklist:
+            dialogs = [dialog for dialog in dialogs if dialog.id not in self.blacklist]
+
+        for dialog in dialogs:
+            logger.info(f"Getting participants from dialog {dialog.title}")
+
+            # If the dialog is not in the database, initialize it
+            if self.db.get_channel_by_id(dialog.id) is None:
+                self.db.upsert_channel(
+                    channel=Channel(
+                        channel_id=dialog.id,
+                        name=dialog.name,
+                    )
+                )
+                self.db.commit_changes()
+
+            await self.download_participants(dialog=dialog)

@@ -20,6 +20,12 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--get-participants",
+        action="store_true",
+        help="download participants from joined chats",
+    )
+
+    parser.add_argument(
         "--search-twitter",
         action="store_true",
         help="search for chats to join on twitter",
@@ -63,7 +69,9 @@ async def main():
                 await searcher.search_messages()
         else:
             downloader = Downloader(client, db)
-            if args.download_past_media is True:
+            if args.get_participants is True:
+                await downloader.download_participants_from_dialogs()
+            elif args.download_past_media is True:
                 await downloader.download_past_media_from_dialogs()
             else:
                 await downloader.download_dialogs()
