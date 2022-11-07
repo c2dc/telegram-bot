@@ -223,3 +223,27 @@ class Media(Base):
                 return "document"
             case _:
                 return None
+
+
+class ResumeMedia(Base):
+    __tablename__ = "resume_media"
+
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(BigInteger, nullable=False)
+    message_id = Column(BigInteger, nullable=False)
+    data = Column(JSONB, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            [channel_id, message_id], [Message.channel_id, Message.message_id]
+        ),
+    )
+
+    def __init__(
+        self,
+        message: types.Message,
+        channel_id: int,
+    ):
+        self.channel_id = channel_id
+        self.message_id = message.id
+        self.data = message.to_json()

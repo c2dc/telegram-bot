@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from .common import logger
 from .connector import init_connection_engine
-from .models import Channel, Message
+from .models import Channel, Message, ResumeMedia
 
 
 class Database(ABC):
@@ -23,6 +23,10 @@ class Database(ABC):
 
     @abstractmethod
     def insert_media(self, media: list) -> None:
+        pass
+
+    @abstractmethod
+    def insert_resume_media(self, resume_media: list) -> None:
         pass
 
     @abstractmethod
@@ -46,6 +50,10 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    def get_resume_media(self, channel_id) -> List[str]:
+        pass
+
+    @abstractmethod
     def commit_changes(self) -> None:
         pass
 
@@ -62,6 +70,9 @@ class PgDatabase(Database):
 
     def insert_media(self, media: list) -> None:
         self.session.add_all(media)
+
+    def insert_resume_media(self, resume_media: list) -> None:
+        self.session.add_all(resume_media)
 
     def upsert_channel(self, channel) -> None:
         statement = (
@@ -98,6 +109,14 @@ class PgDatabase(Database):
         )
 
         return self.session.execute(statement).scalars().all()
+
+    def get_resume_media(self, channel_id) -> List[str]:
+        statement = select(ResumeMedia.data).filter_by(channel_id=channel_id)
+        resume_media = self.session.execute(statement).scalars().all()
+
+        self.session.execute(delete(ResumeMedia).filter_by(channel_id=channel_id))
+
+        return resume_media
 
     def commit_changes(self) -> None:
         try:

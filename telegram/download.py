@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import time
 from typing import Any, List
@@ -9,7 +10,7 @@ from tqdm import tqdm
 from .client import TelegramClient
 from .common import BATCH_SIZE, config, logger
 from .database import Database
-from .models import Channel, Media, Message
+from .models import Channel, Media, Message, ResumeMedia
 
 BAR_FORMAT = (
     "{l_bar}{bar}| {n_fmt}/{total_fmt} "
@@ -105,8 +106,12 @@ class Downloader:
         # Create asyncio Tasks
         asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
 
-        # Resume entities and media download
-        # self.enqueue_media()
+        # Resume media download
+        resume_media = self.db.get_resume_media(channel_id=dialog.id)
+        resume_messages = [
+            json.loads(message, object_hook=types.Message) for message in resume_media
+        ]
+        self.enqueue_media(resume_messages)
         try:
             max_message_id = self.db.get_max_message_id(dialog.id)
 
@@ -184,15 +189,17 @@ class Downloader:
             med_bar.n = med_bar.total
             med_bar.close()
 
-            # # If the download was interrupted and there is media left in the
-            # # queue we want to save them into the database for the next run.
-            # media = []
-            # while not self._media_queue.empty():
-            #     media.append(self._media_queue.get_nowait())
-            # # self.db.save_resume_media(media)
+            # If the download was interrupted and there is media left in the
+            # queue we want to save them into the database for the next run.
+            media = []
+            while not self._media_queue.empty():
+                message = self._media_queue.get_nowait()
+                media.append(ResumeMedia(message, channel_id=dialog.id))
 
-            # if media:
-            #     self.db.commit_changes()
+            self.db.insert_resume_media(resume_media=media)
+
+            if media:
+                self.db.commit_changes()
 
             # Delete partially-downloaded files
             if self._incomplete_download is not None and os.path.isfile(
