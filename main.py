@@ -43,6 +43,12 @@ def parse_args():
         help="download past media from all dialogs",
     )
 
+    parser.add_argument(
+        "--without-media",
+        action="store_true",
+        help="download telegram data (chats and messages) without downloading media",
+    )
+
     return parser.parse_args()
 
 
@@ -68,7 +74,7 @@ async def main():
             elif args.search_messages:
                 await searcher.search_messages()
         else:
-            downloader = Downloader(client, db)
+            downloader = Downloader(args, client, db)
             if args.get_participants is True:
                 await downloader.download_participants_from_dialogs()
             elif args.download_past_media is True:

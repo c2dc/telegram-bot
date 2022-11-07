@@ -28,11 +28,14 @@ class Downloader:
     Make Telegram API requests and sleep for the appropriate time.
     """
 
-    def __init__(self, client: TelegramClient, db: Database) -> None:
+    def __init__(self, args, client: TelegramClient, db: Database) -> None:
         self.db = db
         self.client = client
         self.whitelist = config.get("whitelist")
         self.blacklist = config.get("blacklist")
+
+        # Check if media should be downloaded or not
+        self.with_media = not args.without_media
 
         # We're gonna need a few queues if we want to do things concurrently.
         # None values should be inserted to notify that the dump has finished.
@@ -92,26 +95,30 @@ class Downloader:
 
         self._running = True
         self._incomplete_download = None  # type: ignore
-        self._folderpath: str = self._create_download_folder(dialog)
 
-        # Create tqdm bars
-        med_bar = tqdm(
-            unit=" files",
-            desc="files",
-            total=0,
-            bar_format=BAR_FORMAT,
-            postfix={"chat": dialog.title},
-        )
+        if self.with_media:
+            self._folderpath: str = self._create_download_folder(dialog)
 
-        # Create asyncio Tasks
-        asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
+            # Create tqdm bars
+            med_bar = tqdm(
+                unit=" files",
+                desc="files",
+                total=0,
+                bar_format=BAR_FORMAT,
+                postfix={"chat": dialog.title},
+            )
 
-        # Resume media download
-        resume_media = self.db.get_resume_media(channel_id=dialog.id)
-        resume_messages = [
-            json.loads(message, object_hook=types.Message) for message in resume_media
-        ]
-        self.enqueue_media(resume_messages)
+            # Create asyncio Tasks
+            asyncio.ensure_future(self._media_consumer(self._media_queue, med_bar))
+
+            # Resume media download
+            resume_media = self.db.get_resume_media(channel_id=dialog.id)
+            resume_messages = [
+                json.loads(message, object_hook=types.Message)
+                for message in resume_media
+            ]
+            self.enqueue_media(resume_messages)
+
         try:
             max_message_id = self.db.get_max_message_id(dialog.id)
 
@@ -157,53 +164,55 @@ class Downloader:
                     )
                 )
 
-                # Insert media metadata into the database
-                media_records = [
-                    Media(message, channel_id=dialog.id)
-                    for message in messages
-                    if self._check_media(message)
-                ]
-                self.db.insert_media(media_records)
+                if self.with_media:
+                    # Insert media metadata into the database
+                    media_records = [
+                        Media(message, channel_id=dialog.id)
+                        for message in messages
+                        if self._check_media(message)
+                    ]
+                    self.db.insert_media(media_records)
 
-                # Enqueue messages with media to be downloaded
-                messages_with_media = [
-                    message for message in messages if self._check_media(message)
-                ]
-                med_bar.total += len(messages_with_media)
-                self.enqueue_media(messages_with_media)
+                    # Enqueue messages with media to be downloaded
+                    messages_with_media = [
+                        message for message in messages if self._check_media(message)
+                    ]
+                    med_bar.total += len(messages_with_media)
+                    self.enqueue_media(messages_with_media)
 
                 # Commit transaction
                 self.db.commit_changes()
 
                 delay = max(HISTORY_DELAY - (time.time() - start), 0)
-                if delay > HISTORY_DELAY:
-                    delay = HISTORY_DELAY
                 await asyncio.sleep(delay)
 
-            await self._media_queue.join()
+            if self.with_media:
+                await self._media_queue.join()
 
         finally:
             self._running = False
-            med_bar.n = med_bar.total
-            med_bar.close()
 
-            # If the download was interrupted and there is media left in the
-            # queue we want to save them into the database for the next run.
-            media = []
-            while not self._media_queue.empty():
-                message = self._media_queue.get_nowait()
-                media.append(ResumeMedia(message, channel_id=dialog.id))
+            if self.with_media:
+                med_bar.n = med_bar.total
+                med_bar.close()
 
-            self.db.insert_resume_media(resume_media=media)
+                # If the download was interrupted and there is media left in the
+                # queue we want to save them into the database for the next run.
+                media = []
+                while not self._media_queue.empty():
+                    message = self._media_queue.get_nowait()
+                    media.append(ResumeMedia(message, channel_id=dialog.id))
 
-            if media:
-                self.db.commit_changes()
+                self.db.insert_resume_media(resume_media=media)
 
-            # Delete partially-downloaded files
-            if self._incomplete_download is not None and os.path.isfile(
-                self._incomplete_download
-            ):
-                os.remove(self._incomplete_download)
+                if media:
+                    self.db.commit_changes()
+
+                # Delete partially-downloaded files
+                if self._incomplete_download is not None and os.path.isfile(
+                    self._incomplete_download
+                ):
+                    os.remove(self._incomplete_download)
 
     async def download_past_media(self, dialog: types.Dialog) -> None:
         """
