@@ -46,6 +46,10 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    def get_all_messages(self) -> List[str]:
+        pass
+
+    @abstractmethod
     def get_messages_with_pattern(self, pattern: str) -> List[str]:
         pass
 
@@ -102,6 +106,13 @@ class PgDatabase(Database):
         statement = select(Channel.max_message_id).filter_by(channel_id=channel_id)
 
         return self.session.execute(statement).scalars().first()
+
+    def get_all_messages(self) -> List[str]:
+        statement = select(Message.id, Message.message, Message.message_utc).filter(
+            Message.message_utc.isnot(None)
+        )
+
+        return self.session.execute(statement).all()
 
     def get_messages_with_pattern(self, pattern: str) -> List[str]:
         statement = (
