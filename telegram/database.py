@@ -42,19 +42,19 @@ class Database(ABC):
         pass
 
     @abstractmethod
-    def upsert_channel_data(self, channel_id, data) -> None:
+    def upsert_channel_data(self, channel_id: int, data) -> None:
         pass
 
     @abstractmethod
-    def get_channel_by_id(self, channel_id) -> Any:
+    def get_channel_by_id(self, channel_id: int) -> Any:
         pass
 
     @abstractmethod
-    def get_max_message_id(self, channel_id) -> Optional[int]:
+    def get_max_message_id(self, channel_id: int) -> Optional[int]:
         pass
 
     @abstractmethod
-    def get_all_messages(self) -> List[str]:
+    def get_all_messages(self, channel_id: Optional[int]) -> List[str]:
         pass
 
     @abstractmethod
@@ -62,7 +62,7 @@ class Database(ABC):
         pass
 
     @abstractmethod
-    def get_resume_media(self, channel_id) -> List[str]:
+    def get_resume_media(self, channel_id: int) -> List[str]:
         pass
 
     @abstractmethod
@@ -127,23 +127,26 @@ class PgDatabase(Database):
 
         self.session.execute(statement)
 
-    def upsert_channel_data(self, channel_id, data) -> None:
+    def upsert_channel_data(self, channel_id: int, data) -> None:
         pass
 
-    def get_channel_by_id(self, channel_id) -> Optional[Channel]:
+    def get_channel_by_id(self, channel_id: int) -> Optional[Channel]:
         statement = select(Channel).filter_by(channel_id=channel_id)
 
         return self.session.execute(statement).scalars().first()
 
-    def get_max_message_id(self, channel_id) -> Optional[int]:
+    def get_max_message_id(self, channel_id: int) -> Optional[int]:
         statement = select(Channel.max_message_id).filter_by(channel_id=channel_id)
 
         return self.session.execute(statement).scalars().first()
 
-    def get_all_messages(self) -> List[str]:
+    def get_all_messages(self, channel_id: Optional[int]) -> List[str]:
         statement = select(Message.id, Message.message, Message.message_utc).filter(
             Message.message_utc.isnot(None)
         )
+
+        if channel_id is not None:
+            statement = statement.filter_by(channel_id=channel_id)
 
         return self.session.execute(statement).all()
 
@@ -154,7 +157,7 @@ class PgDatabase(Database):
 
         return self.session.execute(statement).scalars().all()
 
-    def get_resume_media(self, channel_id) -> List[str]:
+    def get_resume_media(self, channel_id: int) -> List[str]:
         statement = select(ResumeMedia.data).filter_by(channel_id=channel_id)
         resume_media = self.session.execute(statement).scalars().all()
 

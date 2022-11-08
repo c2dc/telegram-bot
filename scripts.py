@@ -1,4 +1,5 @@
 import argparse
+from datetime import date
 
 from telegram.database import PgDatabase
 from telegram.scripts import activity_over_time, inactive_users
@@ -19,7 +20,19 @@ def parse_args():
     parser_aot.add_argument(
         "--dialog-id",
         type=int,
-        help="specify dialog to analyze",
+        help="specify dialog to analyze. If not provided, all dialogs will be analyzed",
+    )
+    parser_aot.add_argument(
+        "--min-date",
+        type=date.fromisoformat,
+        default=date(2020, 1, 1),
+        help="lower bound of date interval to analyze (YYYY-MM-DD)",
+    )
+    parser_aot.add_argument(
+        "--max-date",
+        type=date.fromisoformat,
+        default=date.today(),
+        help="upper bound of date interval to analyze (YYYY-MM-DD)",
     )
 
     # Parser options for inactive_users
@@ -32,6 +45,12 @@ def parse_args():
         type=int,
         required=True,
         help="specify dialog to analyze",
+    )
+    parser_iu.add_argument(
+        "--min-messages",
+        type=int,
+        default=3,
+        help="minumum number of messages to consider a user active",
     )
 
     return parser.parse_args()
