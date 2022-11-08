@@ -10,3 +10,9 @@ __pycache__
 
 # Don't add downloaded files
 downloads
+
+# Don't add generated images
+*.eps
+
+# Don't add notebooks
+*.ipynb
