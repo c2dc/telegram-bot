@@ -1,18 +1,37 @@
 import argparse
 
 from telegram.database import PgDatabase
-from telegram.scripts import activity_over_time
+from telegram.scripts import activity_over_time, inactive_users
 
 
 def parse_args():
+    # Top level parser
     parser = argparse.ArgumentParser(
         description="Analysis of collected Telegram data (chats, messages, and media)"
     )
+    subparsers = parser.add_subparsers(dest="commands")
 
-    parser.add_argument(
-        "--activity-over-time",
-        action="store_true",
-        help="plots activity over time for a given dialog_id",
+    # Parser options for activity_over_time
+    parser_aot = subparsers.add_parser(
+        "activity-over-time",
+        help="plots activity over time for collected data",
+    )
+    parser_aot.add_argument(
+        "--dialog-id",
+        type=int,
+        help="specify dialog to analyze",
+    )
+
+    # Parser options for inactive_users
+    parser_iu = subparsers.add_parser(
+        "inactive-users",
+        help="finds percentage of users in a chat that have sent less than n messages",
+    )
+    parser_iu.add_argument(
+        "--dialog-id",
+        type=int,
+        required=True,
+        help="specify dialog to analyze",
     )
 
     return parser.parse_args()
@@ -26,8 +45,11 @@ def main():
     args = parse_args()
     db = PgDatabase()
 
-    if args.activity_over_time is True:
-        activity_over_time(db)
+    match args.commands:
+        case "activity-over-time":
+            activity_over_time(args, db)
+        case "inactive-users":
+            inactive_users(args, db)
 
 
 if __name__ == "__main__":

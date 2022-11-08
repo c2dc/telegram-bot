@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from .common import logger
 from .connector import init_connection_engine
@@ -63,6 +63,10 @@ class Database(ABC):
 
     @abstractmethod
     def get_resume_media(self, channel_id) -> List[str]:
+        pass
+
+    @abstractmethod
+    def get_users_message_count(self, channel_id: int) -> None:
         pass
 
     @abstractmethod
@@ -157,6 +161,46 @@ class PgDatabase(Database):
         self.session.execute(delete(ResumeMedia).filter_by(channel_id=channel_id))
 
         return resume_media
+
+    def get_users_message_count(self, channel_id: int) -> None:
+        users_from_channel = (
+            select(User)
+            .join(UserChannel)
+            .filter_by(channel_id=channel_id)
+            .cte(name="users_from_channel")
+        )
+        user_alias = aliased(users_from_channel)
+
+        messages_from_channel = (
+            select(Message)
+            .filter_by(channel_id=channel_id)
+            .cte(name="messages_from_channel")
+        )
+        message_alias = aliased(messages_from_channel)
+
+        statement = (
+            select(
+                user_alias.c.user_id,
+                user_alias.c.username,
+                user_alias.c.first_name,
+                user_alias.c.last_name,
+                func.count(message_alias.c.message),
+            )
+            .join(
+                user_alias,
+                user_alias.c.user_id == message_alias.c.from_id,
+                # full outer join to return even users without any messages
+                full=True,
+            )
+            .group_by(
+                user_alias.c.user_id,
+                user_alias.c.username,
+                user_alias.c.first_name,
+                user_alias.c.last_name,
+            )
+        )
+
+        return self.session.execute(statement).all()
 
     def commit_changes(self) -> None:
         try:
