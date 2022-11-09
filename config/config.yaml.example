@@ -1,17 +1,74 @@
+# Templated configuration file for telegram-bot.
+#
+# This file should be edited before running the code.
+
+############################# 'Basic options' #############################
+
+# Telethon credentials 
+#
+# Before running the code, you must enter your own Telegram API's credentials. 
+# They can be obtained in https://my.telegram.org/, by supplying your phone 
+# number and password. You can read more about in Telethon's documentation:
+# https://docs.telethon.dev/en/stable/basic/signing-in.html#signing-in
+#
+# Session name, can be anything
 session: tg
-# Telethon credentials
+#
+# Telegram's API ID
 api_id: xxxxxx
+#
+# Telegram's API hash
 api_hash: xxxxxx
+
+
 # Database credentials
+# 
+# The credentials listed here should match the credentials supplied when creating
+# the database in docker-compose.yml file. For now, only Postgres database is 
+# supported.
+#
+# Database user password
 db_pass: postgres
+#
+# Database user name
 db_user: postgres
+#
+# Database name
 db_name: postgres
-# Twarc2 credentials
+
+
+# Twitter credentials
+#
+# The Twitter API's credentials, in order to search for Telegram links there. 
+# These are optional, but if you don't supply them, the search_twitter method 
+# won't work.
+#
+# You can read more about obtaining valid twitter credentials in the link below.
+# https://twarc-project.readthedocs.io/en/latest/twitter-developer-access/
+#
+# Twitter Developer app key
 consumer_key: xxxxxx
+# 
+# Twitter Developer app secret
 consumer_secret: xxxxxx
-whitelist:
-  - xxxxxx
-  - xxxxxx
-blacklist:
-  - xxxxxx
-  - xxxxxx
+
+############################# 'Advanced Options' #############################
+
+# Whitelist/Blacklist configuration
+#
+# This configuration option allows the collecting of only a selected few channels
+# and groups. You must provide the channel_id's of the entities you are trying to
+# select. If you specify a Whitelist, only the listed channel's will have their 
+# messages collected; if you specify a Blacklist, all but the listed channel's will
+# have their messages collected.
+#
+# IMPORTANT: Only whitelist or blacklisted should be present, not both. If both are
+# present, only whitelist will be considered.
+#
+# whitelist:
+#   - xxxxxx
+#   - xxxxxx
+#
+# blacklist:
+#   - xxxxxx
+#   - xxxxxx
