@@ -17,6 +17,20 @@ services:
       - postgres
     restart: unless-stopped
 
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_USER:-postgres@example.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASS:-postgres}
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - postgres
+    restart: unless-stopped
+
 networks:
   postgres:
     driver: bridge
