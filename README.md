@@ -104,7 +104,11 @@ poetry run python main.py --search-messages
 ```
 
 ## Export collected data<a name="export"></a>
-> TO BE IMPLEMENTED
+You can export the collected data stored in the database as a pg_dump file.
+
+```bash
+poetry run python scripts.py export [--dest-file DEST_FILE] [--compress]
+```
 
 ## Related work<a name="related-work"></a>
 

@@ -2,7 +2,7 @@ import argparse
 from datetime import date
 
 from telegram.database import PgDatabase
-from telegram.scripts import activity_over_time, inactive_users
+from telegram.scripts import activity_over_time, export, inactive_users
 
 
 def parse_args():
@@ -53,6 +53,18 @@ def parse_args():
         help="minumum number of messages to consider a user active",
     )
 
+    # Parser options for export
+    parser_ex = subparsers.add_parser("export", help="export postgres database as file")
+    parser_ex.add_argument(
+        "--dest-file",
+        type=str,
+        default="backup.sql",
+        help="destination file for exported database",
+    )
+    parser_ex.add_argument(
+        "--compress", action="store_true", help="compress destination file"
+    )
+
     return parser.parse_args()
 
 
@@ -69,6 +81,8 @@ def main():
             activity_over_time(args, db)
         case "inactive-users":
             inactive_users(args, db)
+        case "export":
+            export(args)
 
 
 if __name__ == "__main__":

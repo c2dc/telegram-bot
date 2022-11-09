@@ -1,8 +1,11 @@
+import os
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from .common import logger
+from .common import config, logger
 from .database import Database
+from .utils import backup_postgres_db, compress_file
 
 
 def activity_over_time(args, db: Database) -> None:
@@ -54,3 +57,29 @@ def inactive_users(args, db: Database) -> tuple:
     )
     print(string)
     return (inactive_users.shape[0], df.shape[0])
+
+
+def export(args) -> None:
+    logger.info(f"Backing up {config['db_name']} database to {args.dest_file}")
+
+    result = backup_postgres_db(
+        host="localhost",
+        name=config["db_name"],
+        port=5432,
+        user=config["db_user"],
+        password=config["db_pass"],
+        dest_file=args.dest_file,
+    )
+    for line in result.splitlines():
+        logger.info(line)
+
+    logger.info("Export complete")
+
+    if args.compress:
+        logger.info(f"Compressing {args.dest_file}")
+        comp_file = compress_file(args.dest_file)
+        logger.info("Compressing complete")
+
+        if os.path.isfile(args.dest_file):
+            logger.info("Removing uncompressed file")
+            os.remove(args.dest_file)
