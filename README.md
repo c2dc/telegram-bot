@@ -98,7 +98,8 @@ You can change the queries used to search twitter by modifying the [search_queri
 ```bash
 poetry run python main.py --search-twitter
 ```
-### Telegram's method (WIP) <a name="search-telegram"></a>
+### Telegram's method<a name="search-telegram"></a>
+
 ```bash
 poetry run python main.py --search-messages
 ```
