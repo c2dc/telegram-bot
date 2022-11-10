@@ -17,9 +17,10 @@ from .database import Database
 class TelegramLink(Enum):
     PUBLIC = 1
     PRIVATE = 2
-    INSTANT_VIEW = 3
-    EMBEDDED = 4
-    UNKNOWN = 5
+    EMBEDDED = 3
+    MESSAGE_LINK = 4
+    IGNORE = 5
+    UNKNOWN = 6
 
 
 class Searcher:
@@ -36,69 +37,105 @@ class Searcher:
             self.db = db
 
         # Patterns for different telegram invite links
-        self.base_pattern = re.compile(
-            "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_\+]+)(\/\S*)?"
-        )
-        self.public_pattern = re.compile(
-            "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)$"
-        )
+        #
+        # You can read more at https://corefork.telegram.org/api/links
+        base = "(https?:\/\/)?(www[.])?(telegram|t)(\.me|\.dog)"
+        self.base_pattern = re.compile(base + "(\/[a-zA-Z0-9_\-\?\+\=]+)+")
+        self.phone_pattern = re.compile(base + "(\/)(\+[0-9]+)$")
         self.private_pattern = re.compile(
-            "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)(joinchat\/|\+)([a-zA-Z0-9_]+)$"
+            base + "(\/)(joinchat\/|\+)([a-zA-Z0-9_\-]+)$"
+        )
+        self.embedded_pattern = re.compile(base + "(\/[a-zA-Z0-9_\-]+)((\/|\?)\S*)$")
+        self.message_link_pattern = re.compile(base + "(\/)(c|s)(\/[a-zA-Z0-9_\-]+)+$")
+        self.message_link_ignore_pattern = re.compile(
+            base + "(\/[0-9]+\?)(single|comment=)(\/?[a-zA-Z0-9_\-]+)*$"
         )
         self.instant_view_pattern = re.compile(
-            "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/iv\?rhash=)([a-z0-9]+)&url=(.*)$"
+            base + "(\/iv\?)(rhash=[a-z0-9\%]+&)?url=(.*)$"
         )
-        self.embedded_pattern = re.compile(
-            "(https?:\/\/)?(www[.])?(telegram|t)(\.me\/)([a-zA-Z0-9_]+)\/([0-9]+)$"
+        self.ignore_pattern = re.compile(
+            base
+            + "(\/)(share|addstickers|addemoji|addtheme|proxy|socks)((\/|\?)[a-zA-Z0-9_\-\?]+)+"
         )
+        self.public_pattern = re.compile(base + "(\/[a-zA-Z0-9_\-=]+)$")
 
     def _match_link(self, link: str) -> TelegramLink:
-        public_match = self.public_pattern.search(link)
+        phone_match = self.phone_pattern.search(link)
         private_match = self.private_pattern.search(link)
-        embedded_match = self.embedded_pattern.search(link)
         instant_view_match = self.instant_view_pattern.search(link)
+        embedded_match = self.embedded_pattern.search(link)
+        message_link_match = self.message_link_pattern.search(link)
+        message_link_ignore_match = self.message_link_ignore_pattern.search(link)
+        ignore_match = self.ignore_pattern.search(link)
+        public_match = self.public_pattern.search(link)
 
-        if public_match:
-            return TelegramLink.PUBLIC
+        if phone_match:
+            return TelegramLink.IGNORE
         elif private_match:
             return TelegramLink.PRIVATE
+        elif message_link_match:
+            return TelegramLink.MESSAGE_LINK
+        elif message_link_ignore_match:
+            return TelegramLink.IGNORE
+        elif instant_view_match:
+            return TelegramLink.IGNORE
+        elif ignore_match:
+            return TelegramLink.IGNORE
+        elif public_match:
+            return TelegramLink.PUBLIC
         elif embedded_match:
             return TelegramLink.EMBEDDED
-        elif instant_view_match:
-            return TelegramLink.INSTANT_VIEW
         else:
             logger.error(f"Uncaught link pattern: {link}")
             return TelegramLink.UNKNOWN
 
     async def _join_invite_links(self, invite_links: List[str]) -> None:
-        for link in invite_links:
+        logger.info("Joining invite links")
+        for link in tqdm(invite_links):
+            start = time.time()
+
             match self._match_link(link):
+                case TelegramLink.PRIVATE:
+                    await self.tl_client.join_private_channel(link)
                 case TelegramLink.PUBLIC:
                     await self.tl_client.join_public_channel(link)
-                case TelegramLink.PRIVATE:
-                    hash = "/".join(link.split("/")[:-1])
-                    await self.tl_client.join_private_channel(hash=hash)
                 case _:
-                    logger.error(f"Uncaught link pattern: {link}")
+                    logger.error(f"Uncaught link pattern when joining: {link}")
                     pass
+
+            delay = max(CHAT_DELAY - (time.time() - start), 0)
+            await asyncio.sleep(delay)
 
     async def _filter_invite_links(self, invite_links: List[str]) -> List[str]:
         urls = set()
         final_urls = set()
 
+        logger.info("Validating invite links...")
+
         # First, try and reduce list size by extracting only private and public
         # links and removing duplicates
         for link in invite_links:
+            # Remove https?:// substring from string
+            link = re.sub("https?:\/\/", "", link)
+
+            # Remove www. substring from string
+            link = re.sub("www[.]", "", link)
+
             match self._match_link(link):
-                case TelegramLink.PUBLIC:
-                    urls.add(link)
-                case TelegramLink.EMBEDDED:
-                    link = "/".join(link.split("/")[:-1])
-                    urls.add(link)
                 case TelegramLink.PRIVATE:
                     urls.add(link)
-                case TelegramLink.INSTANT_VIEW:
-                    pass
+                case TelegramLink.PUBLIC:
+                    # TODO: Improve regex to disregard numeric-only ids
+                    if link.split("/")[1].isnumeric():
+                        continue
+                    urls.add(link)
+                case TelegramLink.EMBEDDED:
+                    link = "/".join(link.split("/")[:2])
+                    link = "/".join(link.split("?")[:1])
+                    urls.add(link)
+                case TelegramLink.MESSAGE_LINK:
+                    link = link.split("/")[0] + "/" + link.split("/")[2]
+                    urls.add(link)
                 case _:
                     pass
 
@@ -107,13 +144,14 @@ class Searcher:
             start = time.time()
 
             match self._match_link(link):
-                case TelegramLink.PUBLIC:
-                    if await self.tl_client.check_public_link(link=link):
-                        final_urls.add(link)
                 case TelegramLink.PRIVATE:
                     if await self.tl_client.check_private_link(link=link):
                         final_urls.add(link)
+                case TelegramLink.PUBLIC:
+                    if await self.tl_client.check_public_link(link=link):
+                        final_urls.add(link)
                 case _:
+                    logger.warning(f"Uncaught link not transformed: {link}")
                     pass
 
             delay = max(CHAT_DELAY - (time.time() - start), 0)
@@ -123,6 +161,8 @@ class Searcher:
 
     async def _get_twitter_invite_links(self) -> List[str]:
         urls = set()
+
+        logger.info("Getting invite links from twitter")
 
         # Start and end times must be in UTC
         start_time = datetime.now(timezone.utc) + timedelta(days=-365 * 2)
@@ -156,14 +196,13 @@ class Searcher:
 
     async def _get_telegram_invite_links(self) -> List[str]:
         urls = set()
-        print(self.db)
+
+        logger.info("Getting invite links from database")
+
         messages = self.db.get_messages_with_pattern(pattern="%t.me%")
         for message in messages:
             # Join group returns from re.findall
             urls_to_add = ["".join(url) for url in self.base_pattern.findall(message)]
-
-            # Remove https?:// substring from string
-            urls_to_add = [re.sub("https?:\/\/", "", url) for url in urls_to_add]
 
             # Add links to set
             urls.update(urls_to_add)

@@ -41,6 +41,23 @@ def _handle_chat(chat: types.Chat, min_participants: int = 50) -> Optional[types
     return chat
 
 
+def _handle_chat_invite(
+    chat_invite: types.ChatInvite, min_participants: int = 50
+) -> Optional[types.ChatInvite]:
+    # Do not join small groups/channels
+    if (
+        chat_invite.participants_count is not None
+        and chat_invite.participants_count < min_participants
+    ):
+        return None
+
+    # Do not join if there's need for admin aproval
+    if hasattr(chat_invite, "request_needed") and chat_invite.request_needed:
+        return None
+
+    return chat_invite
+
+
 class TelegramClient(ABC):
     def __init__(self) -> None:
         pass
@@ -89,23 +106,11 @@ class TelegramClient(ABC):
         pass
 
     @abstractmethod
-    async def join_private_channel(self, hash: str) -> None:
+    async def join_private_channel(self, link: str) -> None:
         pass
 
     @abstractmethod
     async def join_public_channel(self, link: str) -> None:
-        pass
-
-    @abstractmethod
-    async def get_chat_invite(
-        self, hash: str, min_participants: int = 50
-    ) -> Optional[types.ChatInvite]:
-        pass
-
-    @abstractmethod
-    async def get_entity(
-        self, link: str, min_participants: int = 50
-    ) -> Optional[types.Chat]:
         pass
 
     @abstractmethod
@@ -205,40 +210,19 @@ class AsyncTelegramClient(TelegramClient):
 
         return dialogs
 
-    async def join_private_channel(self, hash: str) -> None:
+    async def join_private_channel(self, link: str) -> None:
         try:
-            # Check if its valid
-            chat_invite = await self.client(
-                functions.messages.CheckChatInviteRequest(hash=hash)
-            )
+            # Extract hash from invite link
+            hash = "".join(link.split("/")[:-1])
+            hash = hash.replace("+", "")
 
-            # Do not join groups/channels we are already members
-            if isinstance(chat_invite, types.ChatInviteAlready):
-                chat = chat_invite.chat
-                logger.info(
-                    f"Won't join channel {chat.title}, since we are already members"
-                )
-                return
+            await self.client(functions.messages.ImportChatInviteRequest(hash=hash))
 
-            # Do not join small groups/channels
-            participants = chat_invite.participants_count
-            if participants > 50:
-                logger.info(
-                    f"Joining channel {chat_invite.title} with {participants} participants"
-                )
-                await self.client(functions.messages.ImportChatInviteRequest(hash))
-            else:
-                logger.info(
-                    f"Won't join channel {chat_invite.title} with only {participants} participants"
-                )
-        except errors.InviteHashExpiredError as e:
-            logger.warning(str(e))
-            pass
-        except errors.UserAlreadyParticipantError as e:
-            logger.warning(str(e))
-            pass
-        except errors.UsernameNotOccupiedError as e:
-            logger.warning(str(e))
+        except (
+            errors.InviteHashExpiredError,
+            errors.UserAlreadyParticipantError,
+            errors.UsernameNotOccupiedError,
+        ) as e:
             pass
         except Exception as e:
             logger.warning(str(e))
@@ -247,103 +231,85 @@ class AsyncTelegramClient(TelegramClient):
     async def join_public_channel(self, link: str) -> None:
         try:
             entity = await self.client.get_entity(link)
+
             if isinstance(entity, types.Channel):
-                logger.info(
-                    f"Joining channel {entity.title} with {entity.participants_count} participants"
-                )
+                logger.info(f"Joining channel {entity.title}")
                 await self.client(functions.channels.JoinChannelRequest(entity))
-        except errors.ChannelPrivateError as e:
-            logger.warning(str(e))
-            pass
-        except errors.UsernameInvalidError as e:
-            logger.warning(str(e))
-            pass
-        except errors.UsernameNotOccupiedError as e:
-            logger.warning(str(e))
+            elif isinstance(entity, types.Chat):
+                logger.info(f"Joining chat {entity.title}")
+                await self.client(functions.channels.JoinChannelRequest(entity))
+
+        except (
+            errors.ChannelPrivateError,
+            errors.UsernameInvalidError,
+            errors.UsernameNotOccupiedError,
+        ) as e:
             pass
         except Exception as e:
             logger.warning(str(e))
             pass
 
-    async def get_chat_invite(
-        self, hash: str, min_participants: int = 50
-    ) -> Optional[types.ChatInvite]:
+    async def check_private_link(self, link: str, min_participants: int = 50) -> bool:
         try:
+            # Extract hash
+            hash = "".join(link.split("/")[:-1])
+            hash = hash.replace("+", "")
+
             # Check if its valid
             chat_invite = await self.client(
                 functions.messages.CheckChatInviteRequest(hash=hash)
             )
 
-            # Do not join groups/channels we are already members
-            if isinstance(chat_invite, types.ChatInviteAlready):
-                chat = chat_invite.chat
-                logger.info(
-                    f"Won't join channel {chat.title}, since we are already members"
-                )
-                return None
+            match chat_invite:
+                case types.ChatInviteAlready():
+                    # Do not join groups/channels we are already members
+                    return False
+                case types.ChatInvite():
+                    if _handle_chat_invite(chat_invite, min_participants) is None:
+                        return False
+                case types.ChatInvitePeek():
+                    if _handle_chat(chat_invite.chat, min_participants) is None:
+                        return False
 
-            if isinstance(chat_invite, types.ChatInvite):
-                # Do not join small groups/channels
-                if (
-                    chat_invite.participants_count is not None
-                    and chat_invite.participants_count < min_participants
-                ):
-                    return None
-
-                # Do not join if there's need for admin aproval
-                if (
-                    hasattr(chat_invite, "request_needed")
-                    and chat_invite.request_needed
-                ):
-                    return None
-
-            if isinstance(chat_invite, types.ChatInvitePeek):
-                chat = chat_invite.chat
-                if _handle_chat(chat, min_participants) is None:
-                    return None
-
-            return chat_invite
+            return True
 
         except (
+            errors.ChannelInvalidError,
             errors.ChannelPrivateError,
             errors.UsernameInvalidError,
             errors.UsernameNotOccupiedError,
             errors.InviteHashInvalidError,
             errors.InviteHashExpiredError,
         ) as e:
-            return None
+            return False
         except ValueError as e:
-            return None
+            return False
         except Exception as e:
             logger.warning(str(e))
-            return None
+            return False
 
-    async def get_entity(
-        self, link: str, min_participants: int = 50
-    ) -> Optional[types.Chat]:
+    async def check_public_link(self, link: str, min_participants: int = 50) -> bool:
         try:
             entity = await self.client.get_entity(link)
 
             # Do not consider users
             if isinstance(entity, types.User):
-                return None
+                return False
 
-            return _handle_chat(entity, min_participants)
+            if _handle_chat(entity, min_participants) is None:
+                return False
 
-        except errors.ChannelPrivateError as e:
-            return None
-        except errors.UsernameInvalidError as e:
-            return None
-        except errors.UsernameNotOccupiedError as e:
-            return None
+            return True
+
+        except (
+            errors.ChannelInvalidError,
+            errors.ChannelPrivateError,
+            errors.UsernameInvalidError,
+            errors.UsernameNotOccupiedError,
+        ) as e:
+            return False
         except ValueError as e:
-            return None
+            return False
         except Exception as e:
             logger.error(str(e))
-            return None
-
-    async def check_private_link(self, link: str, min_participants: int = 50) -> bool:
-        return False
-
-    async def check_public_link(self, link: str, min_participants: int = 50) -> bool:
-        return False
+            return False
