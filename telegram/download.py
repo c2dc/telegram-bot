@@ -8,7 +8,7 @@ from telethon.tl import types
 from tqdm import tqdm
 
 from .client import TelegramClient
-from .common import BATCH_SIZE, config, logger
+from .common import BATCH_SIZE, HISTORY_DELAY, MEDIA_DELAY, config, logger
 from .database import Database
 from .models import Channel, Media, Message, ResumeMedia, User, UserChannel
 
@@ -17,9 +17,6 @@ BAR_FORMAT = (
     "[{elapsed}<{remaining}, {rate_noinv_fmt}{postfix}]"
 )
 DOWNLOAD_PART_SIZE = 256 * 1024
-
-MEDIA_DELAY = 3.0
-HISTORY_DELAY = 1.0
 
 
 class Downloader:

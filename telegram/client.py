@@ -108,6 +108,14 @@ class TelegramClient(ABC):
     ) -> Optional[types.Chat]:
         pass
 
+    @abstractmethod
+    async def check_private_link(self, link: str, min_participants: int = 50) -> bool:
+        pass
+
+    @abstractmethod
+    async def check_public_link(self, link: str, min_participants: int = 50) -> bool:
+        pass
+
 
 class AsyncTelegramClient(TelegramClient):
     def __init__(self) -> None:
@@ -333,3 +341,9 @@ class AsyncTelegramClient(TelegramClient):
         except Exception as e:
             logger.error(str(e))
             return None
+
+    async def check_private_link(self, link: str, min_participants: int = 50) -> bool:
+        return False
+
+    async def check_public_link(self, link: str, min_participants: int = 50) -> bool:
+        return False

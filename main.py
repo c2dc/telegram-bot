@@ -68,13 +68,13 @@ async def main():
 
     try:
         if args.search_twitter or args.search_messages:
-            searcher = Searcher(args, client, db)
+            searcher = Searcher(args=args, client=client, db=db)
             if args.search_twitter:
                 await searcher.search_twitter()
             elif args.search_messages:
                 await searcher.search_messages()
         else:
-            downloader = Downloader(args, client, db)
+            downloader = Downloader(args=args, client=client, db=db)
             if args.get_participants is True:
                 await downloader.download_participants_from_dialogs()
             elif args.download_past_media is True:

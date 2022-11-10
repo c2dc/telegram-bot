@@ -5,6 +5,11 @@ import yaml
 
 BATCH_SIZE = 500
 
+# Sleep delays between requests
+HISTORY_DELAY = 1.0
+MEDIA_DELAY = 3.0
+CHAT_DELAY = 1.5
+
 
 class TqdmLoggingHandler(logging.Handler):
     """Redirect all logging messages through tqdm.write()"""
