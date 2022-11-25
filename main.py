@@ -66,7 +66,7 @@ async def main():
     await client.connect()
 
     if args.log_in is True:
-        await client.sign_in()
+        await client.client.start()
         return
 
     if args.list_dialogs is True:
