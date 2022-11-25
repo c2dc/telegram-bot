@@ -16,6 +16,10 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--log-in", action="store_true", help="register telethon auth key"
+    )
+
+    parser.add_argument(
         "--list-dialogs", action="store_true", help="list dialogs and exit"
     )
 
@@ -60,6 +64,10 @@ async def main():
     db = PgDatabase()
     client = AsyncTelegramClient()
     await client.connect()
+
+    if args.log_in is True:
+        await client.sign_in()
+        return
 
     if args.list_dialogs is True:
         dialogs = await client.get_dialogs()
